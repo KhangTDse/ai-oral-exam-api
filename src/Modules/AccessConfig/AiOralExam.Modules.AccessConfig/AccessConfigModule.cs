@@ -27,9 +27,10 @@ public static class AccessConfigModule
             .UseSnakeCaseNamingConvention());
 
         // ASP.NET Core Identity PasswordHasher: PBKDF2-HMAC-SHA512, the salt is inside the hash
-        services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
+        services.AddScoped<IPasswordHasher<UserAccount>, PasswordHasher<UserAccount>>();
         services.AddScoped<IJwtTokenIssuer, JwtTokenIssuer>();
         services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<IAccountSetupEmailSender, UnconfiguredAccountSetupEmailSender>();
         services.AddScoped<IExamSessionQueries, ExamSessionQueries>();
         services.AddScoped<IExamSessionCommands, ExamSessionCommands>();
         services.AddScoped<ICourseService, CourseService>();

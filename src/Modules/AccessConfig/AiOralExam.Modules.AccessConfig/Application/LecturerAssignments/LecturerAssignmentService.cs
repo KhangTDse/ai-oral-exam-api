@@ -13,8 +13,8 @@ using Microsoft.EntityFrameworkCore;
 namespace AiOralExam.Modules.AccessConfig.Application.LecturerAssignments;
 public sealed record LecturerDto(
     Guid Id,
-    string FullName,
-    string Email,
+    string? FullName,
+    string? Email,
     string? LecturerCode,
     DateTime AssignedAt);
 
@@ -31,7 +31,7 @@ internal sealed class LecturerAssignmentService(AccessConfigDbContext db, ICurre
         => await db.CourseLecturers.AsNoTracking()
         .Where(x => x.CourseId == courseId)
         .OrderBy(x => x.Lecturer.FullName)
-        .Select(x => new LecturerDto(x.LecturerId, x.Lecturer.FullName, x.Lecturer.Email,
+        .Select(x => new LecturerDto(x.LecturerId, x.Lecturer.FullName, x.Lecturer.Account == null ? null : x.Lecturer.Account.Email,
             x.Lecturer.LecturerCode, x.AssignedAt))
         .ToListAsync(ct);
 
@@ -39,9 +39,10 @@ internal sealed class LecturerAssignmentService(AccessConfigDbContext db, ICurre
     {
         if (!await db.Courses.AnyAsync(x => x.Id == courseId, ct))
             throw new NotFoundException("course_not_found", "Course not found.");
-        var u = await db.Users.FindAsync([lecturerId], ct) ??
+        var u = await db.Users.Include(x => x.Role).Include(x => x.Account)
+            .FirstOrDefaultAsync(x => x.Id == lecturerId, ct) ??
             throw new NotFoundException("user_not_found", "Lecturer not found.");
-        if (u.RoleId != UserRole.Lecturer)
+        if (u.Role.Name != UserRole.Lecturer.ToString())
             throw new ValidationException(new Dictionary<string, string[]>
             {
                 {
@@ -59,7 +60,7 @@ internal sealed class LecturerAssignmentService(AccessConfigDbContext db, ICurre
         db.CourseLecturers.Add(x);
         await db.SaveChangesAsync(ct);
         await CourseService.Audit(db, me.Id, "AssignLecturer", "Course", courseId, ct);
-        return new(u.Id, u.FullName, u.Email, u.LecturerCode, x.AssignedAt);
+        return new(u.Id, u.FullName, u.Account?.Email, u.LecturerCode, x.AssignedAt);
     }
 
     public async Task RemoveAsync(Guid courseId, Guid lecturerId, CancellationToken ct)

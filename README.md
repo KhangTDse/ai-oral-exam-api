@@ -132,7 +132,7 @@ ai-oral-exam-api/
 
 | Module | Does | Owns tables | Depends on |
 |---|---|---|---|
-| **AccessConfig** (F7) | accounts, sign-in, lecturer assignment, exam sessions, questions, rubrics, AI settings, audit log | `users`, `roles`, `password_setup_tokens`, `courses`, `course_lecturers`, `exam_sessions`, `questions`, `rubrics`, `ai_service_configs`, `audit_logs` | – |
+| **AccessConfig** (F7) | accounts, sign-in, lecturer assignment, exam sessions, questions, rubrics, AI settings, audit log | `users`, `roles`, `user_accounts`, `email_link_tokens`, `courses`, `course_lecturers`, `exam_sessions`, `questions`, `rubrics`, `ai_service_configs`, `audit_logs` | – |
 | **Interview** (F3) | runs the exam, follow-ups, AI score suggestions, (M3) lecturer review | `participants`, `interview_attempts`, `question_responses`, `interview_turns`, `ai_evaluations`, `score_reviews` | `AccessConfig.Contracts` |
 | **Reporting** (F6) | student reports, results, class statistics, grade sheet export | *(none)* | `Interview.Contracts`, `AccessConfig.Contracts` |
 
@@ -147,6 +147,7 @@ ai-oral-exam-api/
 | Method | Route | Role | Tracker task |
 |---|---|---|---|
 | POST | `/api/auth/login` | – | BE-PLAT-07 |
+| POST | `/api/auth/setup` | – | Account setup |
 | GET | `/api/auth/me` | any | BE-PLAT-07 |
 | GET | `/api/courses/mine` | Lecturer, Admin | |
 | GET | `/api/exam-sessions`, `/api/exam-sessions/{id}` | Lecturer, Admin | |
@@ -192,6 +193,8 @@ There is no way back. Each submitted answer returns an `outcome`:
 | `Interview:AllowRetake` | `false` | whether students may retake an exam (open point) |
 | `Interview:TimeLimitGraceSeconds` | 15 | grace period after the time limit |
 | `Cors:AllowedOrigins` | `http://localhost:5173`, `http://localhost:3000` | where the FE runs |
+
+Administrator-created accounts require an account-setup email sender and frontend setup URL. Neither is configured in this API yet; the registered fail-closed `IAccountSetupEmailSender` placeholder causes user creation to return service unavailable and roll back until replaced with a configured sender.
 
 To override settings on your machine without committing them, use `dotnet user-secrets` (the project already has a `UserSecretsId`) or environment variables, e.g. `ConnectionStrings__Database=...`.
 

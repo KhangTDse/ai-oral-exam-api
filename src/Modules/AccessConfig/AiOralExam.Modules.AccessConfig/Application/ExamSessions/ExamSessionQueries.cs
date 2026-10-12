@@ -1,4 +1,5 @@
 using AiOralExam.Modules.AccessConfig.Infrastructure;
+using AiOralExam.Modules.AccessConfig.Application.Rubrics;
 using AiOralExam.SharedKernel.Errors;
 using AiOralExam.SharedKernel.Security;
 using Microsoft.EntityFrameworkCore;
@@ -45,7 +46,7 @@ internal sealed class ExamSessionQueries(AccessConfigDbContext db, ICurrentUser 
             .OrderByDescending(s => s.StartTime)
             .Select(s => new ExamSessionSummaryDto(
                 s.Id, s.Course.Code, s.Title, s.StartTime, s.EndTime,
-                s.TimeLimitPerQuestion, s.MaxFollowUps, s.Status.ToString(), s.Questions.Count))
+                s.TimeLimitPerAnswerSeconds, s.MaxFollowUps, s.Status.ToString(), s.Questions.Count))
             .ToListAsync(ct);
     }
 
@@ -53,7 +54,7 @@ internal sealed class ExamSessionQueries(AccessConfigDbContext db, ICurrentUser 
     {
         var s = await db.ExamSessions.AsNoTracking()
                     .Include(x => x.Course).ThenInclude(c => c.Lecturers)
-                    .Include(x => x.Questions).ThenInclude(q => q.Rubric)
+                    .Include(x => x.Questions).ThenInclude(q => q.Rubric).ThenInclude(r => r.Criteria)
                     .AsSplitQuery()
                     .FirstOrDefaultAsync(x => x.Id == id, ct)
                 ?? throw new NotFoundException("exam_session_not_found", "Exam session not found.");
@@ -63,9 +64,12 @@ internal sealed class ExamSessionQueries(AccessConfigDbContext db, ICurrentUser 
 
         return new ExamSessionDetailDto(
             s.Id, s.CourseId, s.Course.Code, s.Course.Name, s.Title, s.StartTime, s.EndTime,
-            s.TimeLimitPerQuestion, s.MaxFollowUps, s.Status.ToString(),
+            s.TimeLimitPerAnswerSeconds, s.MaxFollowUps, s.Status.ToString(),
             s.Questions.OrderBy(q => q.OrderNo)
-                .Select(q => new QuestionDto(q.Id, q.OrderNo, q.Content, q.Rubric.Criteria, q.Rubric.MaxScore))
+                .Select(q => new QuestionDto(q.Id, q.OrderNo, q.Content,
+                    q.Rubric.Criteria.OrderBy(c => c.OrderNo)
+                        .Select(c => new RubricCriterionDto(c.Id, c.OrderNo, c.Description, c.MaxPoints)).ToList(),
+                    q.Rubric.MaxScore))
                 .ToList());
     }
 }

@@ -27,7 +27,7 @@
 --   S6 33333333-...0006  PRN232  Published, NOT OPEN YET (starts now()+3d) 3 questions
 --
 -- Times of the open / upcoming sessions are relative to now(), so the demo works whenever the seed runs.
--- password_hash uses the ASP.NET Identity V3 format (PBKDF2-HMAC-SHA512, 100000 iterations,
+-- user_accounts.password_hash uses the ASP.NET Identity V3 format (PBKDF2-HMAC-SHA512,
 -- salt inside the hash) => works directly with PasswordHasher<TUser>.
 -- =====================================================================
 
@@ -42,7 +42,19 @@ INSERT INTO roles (id, name) VALUES
 -- ---------- Users ----------
 -- 1..7: original accounts; 8: second admin; 9..12: lecturers; 101..136: students SE180005..SE180040
 -- SE180025 (Huỳnh Gia Duy) is locked (is_active = false) to test a failed sign-in.
-INSERT INTO users (id, full_name, email, role_id, auth_provider, password_hash, student_code, lecturer_code, is_active) VALUES
+CREATE TEMP TABLE seed_user_accounts (
+  user_id UUID PRIMARY KEY,
+  full_name VARCHAR(150) NOT NULL,
+  email VARCHAR(255) NOT NULL,
+  role_id SMALLINT NOT NULL,
+  auth_provider VARCHAR(20) NOT NULL,
+  password_hash VARCHAR(512),
+  student_code VARCHAR(20),
+  lecturer_code VARCHAR(20),
+  is_active BOOLEAN NOT NULL
+) ON COMMIT DROP;
+
+INSERT INTO seed_user_accounts (user_id, full_name, email, role_id, auth_provider, password_hash, student_code, lecturer_code, is_active) VALUES
   ('11111111-0000-0000-0000-000000000001', 'System Administrator',  'admin@aives.edu.vn',   3, 'Password',
    'AQAAAAIAAYagAAAAEH0qZ8ti6XJn97UDV55izQte1KafEVBpk1c/Z6QhKRc/gsEFK1ehRpAf3htW+VyXMg==', NULL, NULL, TRUE),
   ('11111111-0000-0000-0000-000000000002', 'Nguyễn Văn An',  'an.nv@aives.edu.vn',   2, 'Password',
@@ -140,17 +152,32 @@ INSERT INTO users (id, full_name, email, role_id, auth_provider, password_hash, 
   ('11111111-0000-0000-0000-000000000136', 'Vũ Quốc Anh', 'anh.vq@aives.edu.vn', 1, 'Password',
    'AQAAAAIAAYagAAAAEH0qZ8ti6XJn97UDV55izQte1KafEVBpk1c/Z6QhKRc/gsEFK1ehRpAf3htW+VyXMg==', 'SE180040', NULL, TRUE);
 
--- ---------- Password setup tokens (only the SHA-256 of the raw token is stored) ----------
+INSERT INTO users (id, full_name, role_id, student_code, lecturer_code, is_active)
+SELECT user_id, full_name, role_id, student_code, lecturer_code, is_active
+FROM seed_user_accounts;
+
+INSERT INTO user_accounts (id, user_id, account_name, email, email_verified, password_hash, password_salt, google_linked)
+SELECT gen_random_uuid(), user_id,
+       CASE WHEN password_hash IS NULL AND auth_provider = 'Password' THEN NULL ELSE split_part(email, '@', 1) END,
+       email, auth_provider = 'GoogleSSO' OR password_hash IS NOT NULL, password_hash, NULL, auth_provider = 'GoogleSSO'
+FROM seed_user_accounts;
+
+-- ---------- Email link tokens (only the SHA-256 of the raw token is stored) ----------
 --   demo-setup-token-khoa   : Khoa activates the account (still valid)
 --   demo-reset-token-used   : reset link already used (must be rejected)
 --   demo-reset-token-expired: reset link expired (must be rejected)
-INSERT INTO password_setup_tokens (user_id, token_hash, purpose, expires_at, used_at, created_at) VALUES
-  ('11111111-0000-0000-0000-000000000007', encode(sha256('demo-setup-token-khoa'::bytea), 'hex'),
-   'AccountSetup', now() + interval '3 days', NULL, now()),
-  ('11111111-0000-0000-0000-000000000103', encode(sha256('demo-reset-token-used'::bytea), 'hex'),
-   'PasswordReset', now() + interval '1 day', now() - interval '1 hour', now() - interval '2 hours'),
-  ('11111111-0000-0000-0000-000000000104', encode(sha256('demo-reset-token-expired'::bytea), 'hex'),
-   'PasswordReset', now() - interval '1 day', NULL, now() - interval '2 days');
+INSERT INTO email_link_tokens (user_account_id, token_hash, purpose, expires_at, used_at, created_at)
+SELECT ua.id, encode(sha256('demo-setup-token-khoa'::bytea), 'hex'),
+       'AccountSetup', now() + interval '3 days', NULL, now()
+FROM user_accounts ua WHERE ua.user_id = '11111111-0000-0000-0000-000000000007'
+UNION ALL
+SELECT ua.id, encode(sha256('demo-reset-token-used'::bytea), 'hex'),
+       'PasswordReset', now() + interval '1 day', now() - interval '1 hour', now() - interval '2 hours'
+FROM user_accounts ua WHERE ua.user_id = '11111111-0000-0000-0000-000000000103'
+UNION ALL
+SELECT ua.id, encode(sha256('demo-reset-token-expired'::bytea), 'hex'),
+       'PasswordReset', now() - interval '1 day', NULL, now() - interval '2 days'
+FROM user_accounts ua WHERE ua.user_id = '11111111-0000-0000-0000-000000000104';
 
 -- ---------- AI service configs (only one active row per service type) ----------
 INSERT INTO ai_service_configs (configured_by, service_type, provider_name, endpoint_url, api_key_encrypted, language, is_active, updated_at) VALUES
@@ -175,9 +202,9 @@ INSERT INTO course_lecturers (course_id, lecturer_id, assigned_at) VALUES
   ('22222222-0000-0000-0000-000000000003', '11111111-0000-0000-0000-000000000011', '2026-09-25 08:05+07'),
   ('22222222-0000-0000-0000-000000000004', '11111111-0000-0000-0000-000000000010', '2026-09-25 08:05+07');
 
--- ---------- Exam sessions (time_limit_per_question: seconds) ----------
+-- ---------- Exam sessions (time_limit_per_answer_seconds: seconds) ----------
 INSERT INTO exam_sessions (id, course_id, created_by, title, start_time, end_time,
-                           time_limit_per_question, max_follow_ups, status, created_at) VALUES
+                           time_limit_per_answer_seconds, max_follow_ups, status, created_at) VALUES
   ('33333333-0000-0000-0000-000000000001', '22222222-0000-0000-0000-000000000001', '11111111-0000-0000-0000-000000000002',
    'SWD392 Midterm Oral Exam', timestamptz '2026-10-01 08:00+07', now() + interval '30 days', 120, 2, 'Published', '2026-09-26 10:00+07'),
   ('33333333-0000-0000-0000-000000000002', '22222222-0000-0000-0000-000000000002', '11111111-0000-0000-0000-000000000003',
@@ -239,36 +266,101 @@ INSERT INTO questions (id, exam_session_id, order_no, content) VALUES
   ('44444444-0000-0000-0000-000000000022', '33333333-0000-0000-0000-000000000006', 3,
    'Explain model binding and validation in ASP.NET Core.');
 
-INSERT INTO rubrics (question_id, criteria, max_score) VALUES
-  ('44444444-0000-0000-0000-000000000001', 'Correct differences in deployment and module boundaries (4 pts); states the trade-offs (3 pts); sensible conditions for choosing a modular monolith (3 pts).', 10),
-  ('44444444-0000-0000-0000-000000000002', 'Correct definition of DIP (4 pts); example with an interface + DI container (4 pts); mentions the testing benefit (2 pts).', 10),
-  ('44444444-0000-0000-0000-000000000003', 'Mentions asynchronous processing / decoupling (5 pts); concrete example scenario (3 pts); mentions the drawbacks (2 pts).', 10),
-  ('44444444-0000-0000-0000-000000000004', 'Middleware order (5 pts); role of next() and short-circuiting (5 pts).', 10),
-  ('44444444-0000-0000-0000-000000000005', 'Correctly distinguishes the 3 lifetimes (6 pts); example of misuse causing a bug (4 pts).', 10),
-  ('44444444-0000-0000-0000-000000000006', 'Add/update migration workflow (5 pts); when raw SQL is appropriate and the SQL injection risk (5 pts).', 10),
-  ('44444444-0000-0000-0000-000000000007', 'AddAuthentication/AddJwtBearer and validation parameters (5 pts); role-based authorization (3 pts); protecting the signing key (2 pts).', 10),
-  ('44444444-0000-0000-0000-000000000008', 'Correct layers and dependency direction (4 pts); difference in dependencies pointing to the domain (4 pts); example (2 pts).', 10),
-  ('44444444-0000-0000-0000-000000000009', 'Defines Repository (3 pts); defines Unit of Work (3 pts); notes that DbContext already is a UoW/repository and when wrapping still makes sense (4 pts).', 10),
-  ('44444444-0000-0000-0000-000000000010', 'Defines coupling (3 pts); defines cohesion (3 pts); correct example (4 pts).', 10),
-  ('44444444-0000-0000-0000-000000000011', 'Purpose of Strategy (4 pts); structure with an interface + implementations (3 pts); fitting example (3 pts).', 10),
-  ('44444444-0000-0000-0000-000000000012', 'Correct definitions of 1NF, 2NF, 3NF (6 pts); sensible example of a 2NF violation (4 pts).', 10),
-  ('44444444-0000-0000-0000-000000000013', 'Result of INNER JOIN (4 pts); result of LEFT JOIN with NULLs (3 pts); correct example (3 pts).', 10),
-  ('44444444-0000-0000-0000-000000000014', 'Definition and B-tree structure (4 pts); benefit for queries (3 pts); cost on writes and storage (3 pts).', 10),
-  ('44444444-0000-0000-0000-000000000015', 'Atomicity (2.5 pts); Consistency (2.5 pts); Isolation (2.5 pts); Durability (2.5 pts).', 10),
-  ('44444444-0000-0000-0000-000000000016', 'Black-box is based on the specification (4 pts); white-box is based on the source code (4 pts); a technique for each (2 pts).', 10),
-  ('44444444-0000-0000-0000-000000000017', 'Equivalence partitioning (4 pts); boundary value analysis (4 pts); correct example (2 pts).', 10),
-  ('44444444-0000-0000-0000-000000000018', 'Scope of unit tests (3 pts); scope of integration tests (3 pts); purpose of mocks (4 pts).', 10),
-  ('44444444-0000-0000-0000-000000000019', 'Title, steps to reproduce, expected and actual result (3 pts); environment, severity, evidence (2 pts).', 5),
-  ('44444444-0000-0000-0000-000000000020', 'Pipeline concept and next() (5 pts); example of a timing middleware (5 pts).', 10),
-  ('44444444-0000-0000-0000-000000000021', 'async/await does not block a thread during I/O (5 pts); cost and management of threads (5 pts).', 10),
-  ('44444444-0000-0000-0000-000000000022', 'Binding sources: route, query, body (5 pts); DataAnnotations and ModelState / [ApiController] (5 pts).', 10);
+INSERT INTO rubrics (question_id) VALUES
+  ('44444444-0000-0000-0000-000000000001'),
+  ('44444444-0000-0000-0000-000000000002'),
+  ('44444444-0000-0000-0000-000000000003'),
+  ('44444444-0000-0000-0000-000000000004'),
+  ('44444444-0000-0000-0000-000000000005'),
+  ('44444444-0000-0000-0000-000000000006'),
+  ('44444444-0000-0000-0000-000000000007'),
+  ('44444444-0000-0000-0000-000000000008'),
+  ('44444444-0000-0000-0000-000000000009'),
+  ('44444444-0000-0000-0000-000000000010'),
+  ('44444444-0000-0000-0000-000000000011'),
+  ('44444444-0000-0000-0000-000000000012'),
+  ('44444444-0000-0000-0000-000000000013'),
+  ('44444444-0000-0000-0000-000000000014'),
+  ('44444444-0000-0000-0000-000000000015'),
+  ('44444444-0000-0000-0000-000000000016'),
+  ('44444444-0000-0000-0000-000000000017'),
+  ('44444444-0000-0000-0000-000000000018'),
+  ('44444444-0000-0000-0000-000000000019'),
+  ('44444444-0000-0000-0000-000000000020'),
+  ('44444444-0000-0000-0000-000000000021'),
+  ('44444444-0000-0000-0000-000000000022');
+
+INSERT INTO rubric_criteria (rubric_id, order_no, description, max_points)
+SELECT r.id, c.order_no, c.description, c.max_points
+FROM (VALUES
+  ('44444444-0000-0000-0000-000000000001'::uuid, 1, 'Correct differences in deployment and module boundaries', 4.0),
+  ('44444444-0000-0000-0000-000000000001'::uuid, 2, 'States the trade-offs', 3.0),
+  ('44444444-0000-0000-0000-000000000001'::uuid, 3, 'Sensible conditions for choosing a modular monolith', 3.0),
+  ('44444444-0000-0000-0000-000000000002'::uuid, 1, 'Correct definition of DIP', 4.0),
+  ('44444444-0000-0000-0000-000000000002'::uuid, 2, 'Example with an interface + DI container', 4.0),
+  ('44444444-0000-0000-0000-000000000002'::uuid, 3, 'Mentions the testing benefit', 2.0),
+  ('44444444-0000-0000-0000-000000000003'::uuid, 1, 'Mentions asynchronous processing / decoupling', 5.0),
+  ('44444444-0000-0000-0000-000000000003'::uuid, 2, 'Concrete example scenario', 3.0),
+  ('44444444-0000-0000-0000-000000000003'::uuid, 3, 'Mentions the drawbacks', 2.0),
+  ('44444444-0000-0000-0000-000000000004'::uuid, 1, 'Middleware order', 5.0),
+  ('44444444-0000-0000-0000-000000000004'::uuid, 2, 'Role of next() and short-circuiting', 5.0),
+  ('44444444-0000-0000-0000-000000000005'::uuid, 1, 'Correctly distinguishes the 3 lifetimes', 6.0),
+  ('44444444-0000-0000-0000-000000000005'::uuid, 2, 'Example of misuse causing a bug', 4.0),
+  ('44444444-0000-0000-0000-000000000006'::uuid, 1, 'Add/update migration workflow', 5.0),
+  ('44444444-0000-0000-0000-000000000006'::uuid, 2, 'When raw SQL is appropriate and the SQL injection risk', 5.0),
+  ('44444444-0000-0000-0000-000000000007'::uuid, 1, 'AddAuthentication/AddJwtBearer and validation parameters', 5.0),
+  ('44444444-0000-0000-0000-000000000007'::uuid, 2, 'Role-based authorization', 3.0),
+  ('44444444-0000-0000-0000-000000000007'::uuid, 3, 'Protecting the signing key', 2.0),
+  ('44444444-0000-0000-0000-000000000008'::uuid, 1, 'Correct layers and dependency direction', 4.0),
+  ('44444444-0000-0000-0000-000000000008'::uuid, 2, 'Difference in dependencies pointing to the domain', 4.0),
+  ('44444444-0000-0000-0000-000000000008'::uuid, 3, 'Example', 2.0),
+  ('44444444-0000-0000-0000-000000000009'::uuid, 1, 'Defines Repository', 3.0),
+  ('44444444-0000-0000-0000-000000000009'::uuid, 2, 'Defines Unit of Work', 3.0),
+  ('44444444-0000-0000-0000-000000000009'::uuid, 3, 'Notes that DbContext already is a UoW/repository and when wrapping still makes sense', 4.0),
+  ('44444444-0000-0000-0000-000000000010'::uuid, 1, 'Defines coupling', 3.0),
+  ('44444444-0000-0000-0000-000000000010'::uuid, 2, 'Defines cohesion', 3.0),
+  ('44444444-0000-0000-0000-000000000010'::uuid, 3, 'Correct example', 4.0),
+  ('44444444-0000-0000-0000-000000000011'::uuid, 1, 'Purpose of Strategy', 4.0),
+  ('44444444-0000-0000-0000-000000000011'::uuid, 2, 'Structure with an interface + implementations', 3.0),
+  ('44444444-0000-0000-0000-000000000011'::uuid, 3, 'Fitting example', 3.0),
+  ('44444444-0000-0000-0000-000000000012'::uuid, 1, 'Correct definitions of 1NF, 2NF, 3NF', 6.0),
+  ('44444444-0000-0000-0000-000000000012'::uuid, 2, 'Sensible example of a 2NF violation', 4.0),
+  ('44444444-0000-0000-0000-000000000013'::uuid, 1, 'Result of INNER JOIN', 4.0),
+  ('44444444-0000-0000-0000-000000000013'::uuid, 2, 'Result of LEFT JOIN with NULLs', 3.0),
+  ('44444444-0000-0000-0000-000000000013'::uuid, 3, 'Correct example', 3.0),
+  ('44444444-0000-0000-0000-000000000014'::uuid, 1, 'Definition and B-tree structure', 4.0),
+  ('44444444-0000-0000-0000-000000000014'::uuid, 2, 'Benefit for queries', 3.0),
+  ('44444444-0000-0000-0000-000000000014'::uuid, 3, 'Cost on writes and storage', 3.0),
+  ('44444444-0000-0000-0000-000000000015'::uuid, 1, 'Atomicity', 2.5),
+  ('44444444-0000-0000-0000-000000000015'::uuid, 2, 'Consistency', 2.5),
+  ('44444444-0000-0000-0000-000000000015'::uuid, 3, 'Isolation', 2.5),
+  ('44444444-0000-0000-0000-000000000015'::uuid, 4, 'Durability', 2.5),
+  ('44444444-0000-0000-0000-000000000016'::uuid, 1, 'Black-box is based on the specification', 4.0),
+  ('44444444-0000-0000-0000-000000000016'::uuid, 2, 'White-box is based on the source code', 4.0),
+  ('44444444-0000-0000-0000-000000000016'::uuid, 3, 'A technique for each', 2.0),
+  ('44444444-0000-0000-0000-000000000017'::uuid, 1, 'Equivalence partitioning', 4.0),
+  ('44444444-0000-0000-0000-000000000017'::uuid, 2, 'Boundary value analysis', 4.0),
+  ('44444444-0000-0000-0000-000000000017'::uuid, 3, 'Correct example', 2.0),
+  ('44444444-0000-0000-0000-000000000018'::uuid, 1, 'Scope of unit tests', 3.0),
+  ('44444444-0000-0000-0000-000000000018'::uuid, 2, 'Scope of integration tests', 3.0),
+  ('44444444-0000-0000-0000-000000000018'::uuid, 3, 'Purpose of mocks', 4.0),
+  ('44444444-0000-0000-0000-000000000019'::uuid, 1, 'Title, steps to reproduce, expected and actual result', 3.0),
+  ('44444444-0000-0000-0000-000000000019'::uuid, 2, 'Environment, severity, evidence', 2.0),
+  ('44444444-0000-0000-0000-000000000020'::uuid, 1, 'Pipeline concept and next()', 5.0),
+  ('44444444-0000-0000-0000-000000000020'::uuid, 2, 'Example of a timing middleware', 5.0),
+  ('44444444-0000-0000-0000-000000000021'::uuid, 1, 'async/await does not block a thread during I/O', 5.0),
+  ('44444444-0000-0000-0000-000000000021'::uuid, 2, 'Cost and management of threads', 5.0),
+  ('44444444-0000-0000-0000-000000000022'::uuid, 1, 'Binding sources: route, query, body', 5.0),
+  ('44444444-0000-0000-0000-000000000022'::uuid, 2, 'DataAnnotations and ModelState / [ApiController]', 5.0)
+) AS c(question_id, order_no, description, max_points)
+JOIN rubrics r ON r.question_id = c.question_id;
 
 -- ---------- Participants ----------
--- Registered + joined_at NULL = not taken yet; Completed = attempt submitted
+-- joined_at records participant registration time; Status indicates whether the student has started
 INSERT INTO participants (id, exam_session_id, student_id, joined_at, status) VALUES
   ('55555555-0000-0000-0000-000000000001', '33333333-0000-0000-0000-000000000001', '11111111-0000-0000-0000-000000000004', '2026-10-01 09:00+07', 'Completed'),
   ('55555555-0000-0000-0000-000000000002', '33333333-0000-0000-0000-000000000001', '11111111-0000-0000-0000-000000000005', '2026-10-01 10:00+07', 'Completed'),
-  ('55555555-0000-0000-0000-000000000003', '33333333-0000-0000-0000-000000000001', '11111111-0000-0000-0000-000000000006', NULL,                  'Registered'),
+  ('55555555-0000-0000-0000-000000000003', '33333333-0000-0000-0000-000000000001', '11111111-0000-0000-0000-000000000006', now(),                  'Registered'),
   ('55555555-0000-0000-0000-000000000004', '33333333-0000-0000-0000-000000000001', '11111111-0000-0000-0000-000000000101', timestamptz '2026-10-02 08:00+07', 'Completed'),
   ('55555555-0000-0000-0000-000000000005', '33333333-0000-0000-0000-000000000001', '11111111-0000-0000-0000-000000000102', timestamptz '2026-10-02 10:00+07', 'Completed'),
   ('55555555-0000-0000-0000-000000000006', '33333333-0000-0000-0000-000000000001', '11111111-0000-0000-0000-000000000103', timestamptz '2026-10-02 12:00+07', 'Completed'),
@@ -276,8 +368,8 @@ INSERT INTO participants (id, exam_session_id, student_id, joined_at, status) VA
   ('55555555-0000-0000-0000-000000000008', '33333333-0000-0000-0000-000000000001', '11111111-0000-0000-0000-000000000105', timestamptz '2026-10-03 10:00+07', 'Completed'),
   ('55555555-0000-0000-0000-000000000009', '33333333-0000-0000-0000-000000000001', '11111111-0000-0000-0000-000000000106', timestamptz '2026-10-03 12:00+07', 'Completed'),
   ('55555555-0000-0000-0000-000000000010', '33333333-0000-0000-0000-000000000001', '11111111-0000-0000-0000-000000000107', timestamptz '2026-10-04 08:00+07', 'InProgress'),
-  ('55555555-0000-0000-0000-000000000011', '33333333-0000-0000-0000-000000000001', '11111111-0000-0000-0000-000000000108', NULL, 'Registered'),
-  ('55555555-0000-0000-0000-000000000012', '33333333-0000-0000-0000-000000000001', '11111111-0000-0000-0000-000000000007', NULL, 'Registered'),
+  ('55555555-0000-0000-0000-000000000011', '33333333-0000-0000-0000-000000000001', '11111111-0000-0000-0000-000000000108', now(), 'Registered'),
+  ('55555555-0000-0000-0000-000000000012', '33333333-0000-0000-0000-000000000001', '11111111-0000-0000-0000-000000000007', now(), 'Registered'),
   ('55555555-0000-0000-0000-000000000013', '33333333-0000-0000-0000-000000000003', '11111111-0000-0000-0000-000000000109', timestamptz '2026-09-15 08:00+07', 'Completed'),
   ('55555555-0000-0000-0000-000000000014', '33333333-0000-0000-0000-000000000003', '11111111-0000-0000-0000-000000000110', timestamptz '2026-09-15 08:30+07', 'Completed'),
   ('55555555-0000-0000-0000-000000000015', '33333333-0000-0000-0000-000000000003', '11111111-0000-0000-0000-000000000111', timestamptz '2026-09-15 09:00+07', 'Completed'),
@@ -290,15 +382,15 @@ INSERT INTO participants (id, exam_session_id, student_id, joined_at, status) VA
   ('55555555-0000-0000-0000-000000000022', '33333333-0000-0000-0000-000000000003', '11111111-0000-0000-0000-000000000118', timestamptz '2026-09-15 12:30+07', 'Completed'),
   ('55555555-0000-0000-0000-000000000023', '33333333-0000-0000-0000-000000000003', '11111111-0000-0000-0000-000000000119', timestamptz '2026-09-15 13:00+07', 'Completed'),
   ('55555555-0000-0000-0000-000000000024', '33333333-0000-0000-0000-000000000003', '11111111-0000-0000-0000-000000000120', timestamptz '2026-09-15 13:30+07', 'Completed'),
-  ('55555555-0000-0000-0000-000000000025', '33333333-0000-0000-0000-000000000003', '11111111-0000-0000-0000-000000000121', NULL, 'Registered'),
+  ('55555555-0000-0000-0000-000000000025', '33333333-0000-0000-0000-000000000003', '11111111-0000-0000-0000-000000000121', now(), 'Registered'),
   ('55555555-0000-0000-0000-000000000026', '33333333-0000-0000-0000-000000000004', '11111111-0000-0000-0000-000000000122', now() - interval '40 hours', 'Completed'),
   ('55555555-0000-0000-0000-000000000027', '33333333-0000-0000-0000-000000000004', '11111111-0000-0000-0000-000000000123', now() - interval '34 hours', 'Completed'),
   ('55555555-0000-0000-0000-000000000028', '33333333-0000-0000-0000-000000000004', '11111111-0000-0000-0000-000000000124', now() - interval '28 hours', 'Completed'),
   ('55555555-0000-0000-0000-000000000029', '33333333-0000-0000-0000-000000000004', '11111111-0000-0000-0000-000000000125', now() - interval '22 hours', 'Completed'),
   ('55555555-0000-0000-0000-000000000030', '33333333-0000-0000-0000-000000000004', '11111111-0000-0000-0000-000000000126', now() - interval '16 hours', 'Completed'),
-  ('55555555-0000-0000-0000-000000000031', '33333333-0000-0000-0000-000000000004', '11111111-0000-0000-0000-000000000006', NULL, 'Registered'),
-  ('55555555-0000-0000-0000-000000000032', '33333333-0000-0000-0000-000000000004', '11111111-0000-0000-0000-000000000127', NULL, 'Registered'),
-  ('55555555-0000-0000-0000-000000000033', '33333333-0000-0000-0000-000000000004', '11111111-0000-0000-0000-000000000128', NULL, 'Registered'),
+  ('55555555-0000-0000-0000-000000000031', '33333333-0000-0000-0000-000000000004', '11111111-0000-0000-0000-000000000006', now(), 'Registered'),
+  ('55555555-0000-0000-0000-000000000032', '33333333-0000-0000-0000-000000000004', '11111111-0000-0000-0000-000000000127', now(), 'Registered'),
+  ('55555555-0000-0000-0000-000000000033', '33333333-0000-0000-0000-000000000004', '11111111-0000-0000-0000-000000000128', now(), 'Registered'),
   ('55555555-0000-0000-0000-000000000034', '33333333-0000-0000-0000-000000000005', '11111111-0000-0000-0000-000000000129', timestamptz '2026-09-22 08:00+07', 'Completed'),
   ('55555555-0000-0000-0000-000000000035', '33333333-0000-0000-0000-000000000005', '11111111-0000-0000-0000-000000000130', timestamptz '2026-09-22 08:30+07', 'Completed'),
   ('55555555-0000-0000-0000-000000000036', '33333333-0000-0000-0000-000000000005', '11111111-0000-0000-0000-000000000131', timestamptz '2026-09-22 09:00+07', 'Completed'),
@@ -307,12 +399,12 @@ INSERT INTO participants (id, exam_session_id, student_id, joined_at, status) VA
   ('55555555-0000-0000-0000-000000000039', '33333333-0000-0000-0000-000000000005', '11111111-0000-0000-0000-000000000134', timestamptz '2026-09-22 10:30+07', 'Completed'),
   ('55555555-0000-0000-0000-000000000040', '33333333-0000-0000-0000-000000000005', '11111111-0000-0000-0000-000000000135', timestamptz '2026-09-22 11:00+07', 'Completed'),
   ('55555555-0000-0000-0000-000000000041', '33333333-0000-0000-0000-000000000005', '11111111-0000-0000-0000-000000000136', timestamptz '2026-09-22 11:30+07', 'Completed'),
-  ('55555555-0000-0000-0000-000000000042', '33333333-0000-0000-0000-000000000006', '11111111-0000-0000-0000-000000000006', NULL, 'Registered'),
-  ('55555555-0000-0000-0000-000000000043', '33333333-0000-0000-0000-000000000006', '11111111-0000-0000-0000-000000000007', NULL, 'Registered'),
-  ('55555555-0000-0000-0000-000000000044', '33333333-0000-0000-0000-000000000006', '11111111-0000-0000-0000-000000000101', NULL, 'Registered'),
-  ('55555555-0000-0000-0000-000000000045', '33333333-0000-0000-0000-000000000006', '11111111-0000-0000-0000-000000000102', NULL, 'Registered'),
-  ('55555555-0000-0000-0000-000000000046', '33333333-0000-0000-0000-000000000006', '11111111-0000-0000-0000-000000000122', NULL, 'Registered'),
-  ('55555555-0000-0000-0000-000000000047', '33333333-0000-0000-0000-000000000006', '11111111-0000-0000-0000-000000000123', NULL, 'Registered');
+  ('55555555-0000-0000-0000-000000000042', '33333333-0000-0000-0000-000000000006', '11111111-0000-0000-0000-000000000006', now(), 'Registered'),
+  ('55555555-0000-0000-0000-000000000043', '33333333-0000-0000-0000-000000000006', '11111111-0000-0000-0000-000000000007', now(), 'Registered'),
+  ('55555555-0000-0000-0000-000000000044', '33333333-0000-0000-0000-000000000006', '11111111-0000-0000-0000-000000000101', now(), 'Registered'),
+  ('55555555-0000-0000-0000-000000000045', '33333333-0000-0000-0000-000000000006', '11111111-0000-0000-0000-000000000102', now(), 'Registered'),
+  ('55555555-0000-0000-0000-000000000046', '33333333-0000-0000-0000-000000000006', '11111111-0000-0000-0000-000000000122', now(), 'Registered'),
+  ('55555555-0000-0000-0000-000000000047', '33333333-0000-0000-0000-000000000006', '11111111-0000-0000-0000-000000000123', now(), 'Registered');
 
 -- ---------- Interview attempts ----------
 -- 66666666-...0001 Chau (Finalized), ...0002 Dung (PendingReview); the rest are generated

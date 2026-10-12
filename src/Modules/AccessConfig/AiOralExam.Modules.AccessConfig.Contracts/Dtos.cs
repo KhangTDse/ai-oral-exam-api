@@ -4,8 +4,14 @@ public sealed record QuestionInfo(
     Guid Id,
     int OrderNo,
     string Content,
-    string RubricCriteria,
+    IReadOnlyList<RubricCriterionInfo> Criteria,
     decimal MaxScore);
+
+public sealed record RubricCriterionInfo(
+    Guid Id,
+    int OrderNo,
+    string Description,
+    decimal MaxPoints);
 
 public sealed record ExamSessionInfo(
     Guid Id,
@@ -15,7 +21,7 @@ public sealed record ExamSessionInfo(
     string Title,
     DateTime StartTime,
     DateTime EndTime,
-    int TimeLimitPerQuestion, // seconds
+    int TimeLimitPerAnswerSeconds, // seconds
     int MaxFollowUps,
     ExamSessionStatus Status,
     IReadOnlyList<QuestionInfo> Questions)
@@ -28,6 +34,6 @@ public sealed record ExamSessionInfo(
 
 public sealed record UserBasicInfo(
     Guid Id,
-    string FullName,
-    string Email,
+    string? FullName,
+    string? Email,
     string? StudentCode);

@@ -18,10 +18,10 @@ public sealed record ParticipantDto(
     Guid Id,
     Guid StudentId,
     string StudentCode,
-    string StudentName,
-    string Email,
+    string? StudentName,
+    string? Email,
     string Status,
-    DateTime? JoinedAt);
+    DateTime JoinedAt);
 
 public sealed record ImportStudentsRequest(
     [Required] IReadOnlyList<string> StudentCodes);
@@ -67,7 +67,8 @@ public sealed class ParticipantService(AccessConfigDbContext db, ICurrentUser me
             .Where(x => x.ExamSessionId == sid)
             .OrderBy(x => x.Student.FullName)
             .Select(x => new ParticipantDto(x.Id, x.StudentId, x.Student.StudentCode!, x.Student.FullName,
-                                            x.Student.Email, x.Status.ToString(), x.JoinedAt)).ToListAsync(ct);
+                                            x.Student.Account == null ? null : x.Student.Account.Email,
+                                            x.Status.ToString(), x.JoinedAt)).ToListAsync(ct);
     }
 
     public async Task<ImportStudentsResult> ImportAsync(Guid sid, ImportStudentsRequest r, CancellationToken ct)
@@ -83,7 +84,7 @@ public sealed class ParticipantService(AccessConfigDbContext db, ICurrentUser me
                     "studentCodes", ["Provide at least one student code."]
                 }
             });
-        var students = await db.Users.Where(x => x.RoleId == UserRole.Student && x.StudentCode != null &&
+        var students = await db.Users.Where(x => x.Role.Name == UserRole.Student.ToString() && x.StudentCode != null &&
                                             codes.Contains(x.StudentCode)).ToListAsync(ct);
         var found = students.Select(x => x.StudentCode!).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var skipped = codes.Where(x => !found.Contains(x)).ToList();
@@ -95,6 +96,7 @@ public sealed class ParticipantService(AccessConfigDbContext db, ICurrentUser me
                 Id = Guid.NewGuid(),
                 ExamSessionId = sid,
                 StudentId = x.Id,
+                JoinedAt = DateTime.UtcNow,
                 Status = ParticipantStatus.Registered
             }).ToList();
         db.Participants.AddRange(add);

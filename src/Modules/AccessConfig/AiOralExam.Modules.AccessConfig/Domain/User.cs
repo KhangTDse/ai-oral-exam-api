@@ -5,14 +5,9 @@ public class User
 {
     public Guid Id { get; set; }
     public string FullName { get; set; } = null!;
-    public string Email { get; set; } = null!;
-    public UserRole RoleId { get; set; }
+    public short RoleId { get; set; }
     public Role Role { get; set; } = null!;
-    public AuthProvider AuthProvider { get; set; } = AuthProvider.Password;
-
-    /// <summary>ASP.NET Core Identity V3 format (the salt is inside the hash). Null = password not set yet / Google SSO.</summary>
-    public string? PasswordHash { get; set; }
-    public string? PasswordSalt { get; set; }
+    public UserAccount? Account { get; set; }
     public string? StudentCode { get; set; }
     public string? LecturerCode { get; set; }
     public bool IsActive { get; set; } = true;
@@ -23,16 +18,29 @@ public class User
 
 public class Role
 {
-    public UserRole Id { get; set; }
+    public short Id { get; set; }
     public string Name { get; set; } = null!;
 }
 
-/// <summary>ERD: PASSWORD SETUP TOKEN. Only the SHA-256 of the token is stored, never the raw token.</summary>
-public class PasswordSetupToken
+public class UserAccount
 {
     public Guid Id { get; set; }
     public Guid UserId { get; set; }
     public User User { get; set; } = null!;
+    public string? AccountName { get; set; }
+    public string Email { get; set; } = null!;
+    public bool EmailVerified { get; set; }
+    public string? PasswordHash { get; set; }
+    public string? PasswordSalt { get; set; }
+    public bool GoogleLinked { get; set; }
+}
+
+/// <summary>ERD: EMAIL LINK TOKEN. Only the SHA-256 of the token is stored, never the raw token.</summary>
+public class EmailLinkToken
+{
+    public Guid Id { get; set; }
+    public Guid UserAccountId { get; set; }
+    public UserAccount UserAccount { get; set; } = null!;
     public string TokenHash { get; set; } = null!;
     public TokenPurpose Purpose { get; set; }
     public DateTime ExpiresAt { get; set; }

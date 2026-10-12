@@ -22,7 +22,7 @@ internal sealed class ExamConfigurationApi(AccessConfigDbContext db) : IExamConf
             .AsNoTracking()
             .Where(s => examSessionIds.Contains(s.Id))
             .Include(s => s.Course)
-            .Include(s => s.Questions).ThenInclude(q => q.Rubric)
+            .Include(s => s.Questions).ThenInclude(q => q.Rubric).ThenInclude(r => r.Criteria)
             .AsSplitQuery()
             .ToListAsync(ct);
 
@@ -39,7 +39,8 @@ internal sealed class ExamConfigurationApi(AccessConfigDbContext db) : IExamConf
         if (userIds.Count == 0) return [];
         return await db.Users.AsNoTracking()
             .Where(u => userIds.Contains(u.Id))
-            .Select(u => new UserBasicInfo(u.Id, u.FullName, u.Email, u.StudentCode))
+            .Select(u => new UserBasicInfo(u.Id, u.FullName,
+                u.Account == null ? null : u.Account.Email, u.StudentCode))
             .ToListAsync(ct);
     }
 
@@ -51,11 +52,14 @@ internal sealed class ExamConfigurationApi(AccessConfigDbContext db) : IExamConf
         s.Title,
         s.StartTime,
         s.EndTime,
-        s.TimeLimitPerQuestion,
+        s.TimeLimitPerAnswerSeconds,
         s.MaxFollowUps,
         s.Status,
         s.Questions
             .OrderBy(q => q.OrderNo)
-            .Select(q => new QuestionInfo(q.Id, q.OrderNo, q.Content, q.Rubric.Criteria, q.Rubric.MaxScore))
+            .Select(q => new QuestionInfo(q.Id, q.OrderNo, q.Content,
+                q.Rubric.Criteria.OrderBy(c => c.OrderNo)
+                    .Select(c => new RubricCriterionInfo(c.Id, c.OrderNo, c.Description, c.MaxPoints)).ToList(),
+                q.Rubric.MaxScore))
             .ToList());
 }

@@ -1,3 +1,5 @@
+using AiOralExam.Modules.AccessConfig.Contracts;
+
 namespace AiOralExam.Modules.Interview.Application.Ai;
 
 // =====================================================================
@@ -14,7 +16,7 @@ public sealed record DialogueTurn(string Question, string? Answer, bool IsFollow
 
 public sealed record AnswerAnalysisRequest(
     string MainQuestion,
-    string RubricCriteria,
+    IReadOnlyList<RubricCriterionInfo> Criteria,
     IReadOnlyList<DialogueTurn> Dialogue,
     int FollowUpsUsed,
     int MaxFollowUps,
@@ -35,7 +37,7 @@ public interface IAnswerAnalyzer
 
 public sealed record RubricScoringRequest(
     string MainQuestion,
-    string RubricCriteria,
+    IReadOnlyList<RubricCriterionInfo> Criteria,
     decimal MaxScore,
     IReadOnlyList<DialogueTurn> Dialogue,
     string Language);

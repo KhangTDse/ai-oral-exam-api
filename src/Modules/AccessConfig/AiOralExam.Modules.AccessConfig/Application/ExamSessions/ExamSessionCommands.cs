@@ -18,14 +18,14 @@ public sealed record CreateExamSessionRequest(
     [Required] string Title,
     DateTime StartTime,
     DateTime EndTime,
-    [Range(1, 3600)] int TimeLimitPerQuestion,
+    [Range(1, 3600)] int TimeLimitPerAnswerSeconds,
     [Range(0, 20)] int MaxFollowUps = 2);
 
 public sealed record UpdateExamSessionRequest(
     [Required] string Title,
     DateTime StartTime,
     DateTime EndTime,
-    [Range(1, 3600)] int TimeLimitPerQuestion,
+    [Range(1, 3600)] int TimeLimitPerAnswerSeconds,
     [Range(0, 20)] int MaxFollowUps = 2);
 
 public sealed record ExamSessionCommandDto(
@@ -34,7 +34,7 @@ public sealed record ExamSessionCommandDto(
     string Title,
     DateTime StartTime,
     DateTime EndTime,
-    int TimeLimitPerQuestion,
+    int TimeLimitPerAnswerSeconds,
     int MaxFollowUps,
     string Status,
     int QuestionCount,
@@ -55,7 +55,7 @@ internal sealed class ExamSessionCommands(AccessConfigDbContext db, ICurrentUser
     {
         var s = await db.ExamSessions
             .Include(x => x.Course).ThenInclude(x => x.Lecturers)
-            .Include(x => x.Questions).ThenInclude(x => x.Rubric)
+            .Include(x => x.Questions).ThenInclude(x => x.Rubric).ThenInclude(x => x.Criteria)
             .FirstOrDefaultAsync(x => x.Id == id, ct) ??
             throw new NotFoundException("exam_session_not_found", "Exam session not found.");
         if (!me.IsInRole(Roles.Administrator) && s.Course.Lecturers.All(x => x.LecturerId != me.Id))
@@ -67,7 +67,7 @@ internal sealed class ExamSessionCommands(AccessConfigDbContext db, ICurrentUser
         => x.Kind == DateTimeKind.Unspecified ? DateTime.SpecifyKind(x, DateTimeKind.Utc) : x.ToUniversalTime();
 
     static ExamSessionCommandDto D(ExamSession s, int pc)
-        => new(s.Id, s.CourseId, s.Title, s.StartTime, s.EndTime, s.TimeLimitPerQuestion, s.MaxFollowUps,
+        => new(s.Id, s.CourseId, s.Title, s.StartTime, s.EndTime, s.TimeLimitPerAnswerSeconds, s.MaxFollowUps,
             s.Status.ToString(), s.Questions.Count, pc);
 
     public async Task<ExamSessionCommandDto> CreateAsync(CreateExamSessionRequest r, CancellationToken ct)
@@ -91,7 +91,7 @@ internal sealed class ExamSessionCommands(AccessConfigDbContext db, ICurrentUser
             Title = r.Title.Trim(),
             StartTime = start,
             EndTime = end,
-            TimeLimitPerQuestion = r.TimeLimitPerQuestion,
+            TimeLimitPerAnswerSeconds = r.TimeLimitPerAnswerSeconds,
             MaxFollowUps = r.MaxFollowUps,
             Status = ExamSessionStatus.Draft,
             CreatedAt = DateTime.UtcNow
@@ -117,7 +117,7 @@ internal sealed class ExamSessionCommands(AccessConfigDbContext db, ICurrentUser
             });
         s.Title = r.Title.Trim();
         s.StartTime = start; s.EndTime = end;
-        s.TimeLimitPerQuestion = r.TimeLimitPerQuestion;
+        s.TimeLimitPerAnswerSeconds = r.TimeLimitPerAnswerSeconds;
         s.MaxFollowUps = r.MaxFollowUps;
         await db.SaveChangesAsync(ct);
         await CourseService.Audit(db, me.Id, "Update", "ExamSession", id, ct);
@@ -145,14 +145,16 @@ internal sealed class ExamSessionCommands(AccessConfigDbContext db, ICurrentUser
                     "questions", ["Add at least one question before publishing."]
                 }
             });
-        var missing = s.Questions.Where(x => x.Rubric is null)
+        var missing = s.Questions.Where(x => x.Rubric is null
+            || x.Rubric.Criteria.Count == 0
+            || x.Rubric.MaxScore <= 0)
             .Select(x => x.OrderNo)
             .OrderBy(x => x).ToList();
         if (missing.Count > 0)
             throw new ValidationException(new Dictionary<string, string[]>
             {
                 {
-                    "rubric", [$"Every question needs a rubric. Missing for question(s): " +
+                    "rubric", [$"Every question needs a rubric with at least one criterion and a max score greater than 0. Missing for question(s): " +
                     $"{string.Join(", ", missing)}."]
                 }
             });

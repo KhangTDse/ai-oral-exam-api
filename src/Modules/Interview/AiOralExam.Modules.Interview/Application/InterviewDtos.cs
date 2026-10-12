@@ -61,7 +61,7 @@ public sealed record MySessionDto(
     string SessionStatus,
     bool IsOpenNow,
     int QuestionCount,
-    int TimeLimitPerQuestion,
+    int TimeLimitPerAnswerSeconds,
     string ParticipantStatus,
     Guid? LatestAttemptId,
     string? LatestAttemptStatus);

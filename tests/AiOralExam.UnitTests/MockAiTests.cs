@@ -1,3 +1,4 @@
+using AiOralExam.Modules.AccessConfig.Contracts;
 using AiOralExam.Modules.Interview.Application.Ai;
 using AiOralExam.Modules.Interview.Application.Ai.Mock;
 
@@ -6,7 +7,8 @@ namespace AiOralExam.UnitTests;
 public class MockAiTests
 {
     private static RubricScoringRequest Request(string? answer) =>
-        new("Q", "criteria", 10, [new DialogueTurn("Q", answer, false)], "Vietnamese");
+        new("Q", [new RubricCriterionInfo(Guid.Empty, 1, "criteria", 10)], 10,
+            [new DialogueTurn("Q", answer, false)], "Vietnamese");
 
     [Fact]
     public async Task Scorer_is_deterministic()
@@ -31,7 +33,8 @@ public class MockAiTests
     [Fact]
     public async Task Analyzer_asks_follow_up_only_when_enabled_and_quota_left()
     {
-        var req = new AnswerAnalysisRequest("Q", "c", [new DialogueTurn("Q", "too short", false)], 0, 2, "Vietnamese");
+        var req = new AnswerAnalysisRequest("Q", [new RubricCriterionInfo(Guid.Empty, 1, "c", 10)],
+            [new DialogueTurn("Q", "too short", false)], 0, 2, "Vietnamese");
 
         Assert.True((await new MockAnswerAnalyzer(true).AnalyzeAsync(req)).NeedsFollowUp);
         Assert.False((await new MockAnswerAnalyzer(false).AnalyzeAsync(req)).NeedsFollowUp);

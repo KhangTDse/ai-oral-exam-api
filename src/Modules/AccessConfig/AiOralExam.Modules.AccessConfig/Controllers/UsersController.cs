@@ -39,10 +39,4 @@ public sealed class UsersController(IUserService service) : ControllerBase
     public Task<UserDto> Update(Guid id, UpdateUserRequest r, CancellationToken ct)
         => service.UpdateAsync(id, r, ct);
 
-    [HttpDelete("{id:guid}")]
-    public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
-    {
-        await service.DeleteAsync(id, ct);
-        return NoContent();
-    }
 }

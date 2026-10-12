@@ -68,7 +68,7 @@ internal sealed class InterviewService(
                 var latest = p.Attempts.MaxBy(a => a.StartedAt);
                 return new MySessionDto(
                     s.Id, s.CourseCode, s.Title, s.StartTime, s.EndTime, s.Status.ToString(), s.IsOpenAt(now),
-                    s.Questions.Count, s.TimeLimitPerQuestion, p.Status.ToString(),
+                    s.Questions.Count, s.TimeLimitPerAnswerSeconds, p.Status.ToString(),
                     latest?.Id, latest?.Status.ToString());
             })
             .OrderBy(x => x.StartTime)
@@ -120,8 +120,6 @@ internal sealed class InterviewService(
         participant.Attempts.Add(attempt);
         db.InterviewAttempts.Add(attempt);
         participant.Status = ParticipantStatus.InProgress;
-        participant.JoinedAt ??= now;
-
         AskMainQuestion(attempt, session.Questions[0], now);
 
         await db.SaveChangesAsync(ct);
@@ -148,7 +146,7 @@ internal sealed class InterviewService(
 
         // 1) Store the answer. Past the time limit + grace => timed out, the transcript is not stored.
         var now = UtcNow;
-        var deadline = turn.AskedAt.AddSeconds(session.TimeLimitPerQuestion + _options.TimeLimitGraceSeconds);
+        var deadline = turn.AskedAt.AddSeconds(session.TimeLimitPerAnswerSeconds + _options.TimeLimitGraceSeconds);
         var timedOut = now > deadline;
         var answer = string.IsNullOrWhiteSpace(request.AnswerText) ? null : request.AnswerText.Trim();
 
@@ -162,10 +160,9 @@ internal sealed class InterviewService(
         var dialogue = response.Turns.OrderBy(t => t.TurnNo)
             .Select(t => new DialogueTurn(t.QuestionText, t.AnswerTranscript, t.Type == TurnType.FollowUp))
             .ToList();
-
         // 2) Analyze -> follow-up?
         var analysis = await analyzer.AnalyzeAsync(new AnswerAnalysisRequest(
-            question.Content, question.RubricCriteria, dialogue,
+            question.Content, question.Criteria, dialogue,
             response.FollowUpCount, session.MaxFollowUps, DefaultLanguage), ct);
 
         if (analysis.NeedsFollowUp && response.FollowUpCount < session.MaxFollowUps
@@ -180,7 +177,7 @@ internal sealed class InterviewService(
 
         // 3) Main question done -> score against the rubric (stored once, Reporting only reads it)
         var score = await scorer.ScoreAsync(new RubricScoringRequest(
-            question.Content, question.RubricCriteria, question.MaxScore, dialogue, DefaultLanguage), ct);
+            question.Content, question.Criteria, question.MaxScore, dialogue, DefaultLanguage), ct);
 
         var suggested = Math.Clamp(score.SuggestedScore, 0, question.MaxScore);
         response.IsFinished = true;
@@ -268,12 +265,12 @@ internal sealed class InterviewService(
             var q = session.Questions.First(x => x.Id == response.QuestionId);
             current = new CurrentTurnDto(
                 response.Id, q.Id, q.OrderNo, turn.TurnNo, turn.Type.ToString(), turn.QuestionText,
-                turn.AskedAt, turn.AskedAt.AddSeconds(session.TimeLimitPerQuestion));
+                turn.AskedAt, turn.AskedAt.AddSeconds(session.TimeLimitPerAnswerSeconds));
         }
 
         return new AttemptStateDto(
             attempt.Id, session.Id, session.Title, attempt.Status.ToString(),
-            session.TimeLimitPerQuestion, session.MaxFollowUps, session.Questions.Count,
+            session.TimeLimitPerAnswerSeconds, session.MaxFollowUps, session.Questions.Count,
             attempt.Responses.Count(r => r.IsFinished),
             attempt.StartedAt, attempt.CompletedAt, current);
     }

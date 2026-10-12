@@ -1,3 +1,5 @@
+using AiOralExam.Modules.AccessConfig.Application.Rubrics;
+
 namespace AiOralExam.Modules.AccessConfig.Application.ExamSessions;
 
 public sealed record ExamSessionSummaryDto(
@@ -6,7 +8,7 @@ public sealed record ExamSessionSummaryDto(
     string Title,
     DateTime StartTime,
     DateTime EndTime,
-    int TimeLimitPerQuestion,
+    int TimeLimitPerAnswerSeconds,
     int MaxFollowUps,
     string Status,
     int QuestionCount);
@@ -15,7 +17,7 @@ public sealed record QuestionDto(
     Guid Id,
     int OrderNo,
     string Content,
-    string RubricCriteria,
+    IReadOnlyList<RubricCriterionDto> Criteria,
     decimal MaxScore);
 
 public sealed record ExamSessionDetailDto(
@@ -26,7 +28,7 @@ public sealed record ExamSessionDetailDto(
     string Title,
     DateTime StartTime,
     DateTime EndTime,
-    int TimeLimitPerQuestion,
+    int TimeLimitPerAnswerSeconds,
     int MaxFollowUps,
     string Status,
     IReadOnlyList<QuestionDto> Questions);

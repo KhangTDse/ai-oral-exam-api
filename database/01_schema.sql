@@ -8,9 +8,9 @@
 
 -- Re-runnable: drop old tables first (reverse dependency order)
 DROP TABLE IF EXISTS score_reviews, ai_evaluations, interview_turns, question_responses,
-    interview_attempts, participants, rubrics, questions, exam_sessions,
+    interview_attempts, participants, rubric_criteria, rubrics, questions, exam_sessions,
     course_lecturers, courses, ai_service_configs, audit_logs,
-    password_setup_tokens, users, roles CASCADE;
+    email_link_tokens, user_accounts, users, roles CASCADE;
 
 -- ---------------------------------------------------------------------
 -- F7 - Access Control
@@ -23,34 +23,48 @@ CREATE TABLE roles (
                 CHECK (name IN ('Student', 'Lecturer', 'Administrator'))
 );
 
--- ERD: USER  (Class diagram: User + Student/Lecturer/Administrator -> one table)
+-- ERD: USER  (profile data; credentials live in user_accounts)
 CREATE TABLE users (
     id              UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
     full_name       VARCHAR(150) NOT NULL,
-    email           VARCHAR(255) NOT NULL UNIQUE,
     role_id         SMALLINT     NOT NULL REFERENCES roles(id),
-    auth_provider   VARCHAR(20)  NOT NULL DEFAULT 'Password'
-                    CHECK (auth_provider IN ('Password', 'GoogleSSO')),
-    password_hash   VARCHAR(512),          -- NULL when no password is set yet / Google SSO
-    password_salt   VARCHAR(128),          -- kept from the class diagram; NULL when using Identity PasswordHasher (salt is inside the hash)
     student_code    VARCHAR(20)  UNIQUE,   -- Student only
     lecturer_code   VARCHAR(20)  UNIQUE,   -- Lecturer only
     is_active       BOOLEAN      NOT NULL DEFAULT TRUE,
-    created_at      TIMESTAMPTZ  NOT NULL DEFAULT now()
+    created_at      TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    CONSTRAINT ck_users_role_codes CHECK (
+        (role_id = 1 AND student_code IS NOT NULL AND length(btrim(student_code)) > 0 AND lecturer_code IS NULL)
+        OR (role_id = 2 AND student_code IS NULL AND lecturer_code IS NOT NULL AND length(btrim(lecturer_code)) > 0)
+        OR (role_id = 3 AND student_code IS NULL AND lecturer_code IS NULL)
+    )
 );
 CREATE INDEX ix_users_role ON users(role_id);
 
--- ERD: PASSWORD SETUP TOKEN  (USER 1 --< 0..*)
-CREATE TABLE password_setup_tokens (
-    id          UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id     UUID         NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    token_hash  VARCHAR(128) NOT NULL UNIQUE,   -- only the token hash is stored, never the raw token
-    purpose     VARCHAR(20)  NOT NULL CHECK (purpose IN ('AccountSetup', 'PasswordReset')),
-    expires_at  TIMESTAMPTZ  NOT NULL,
-    used_at     TIMESTAMPTZ,
-    created_at  TIMESTAMPTZ  NOT NULL DEFAULT now()
+CREATE TABLE user_accounts (
+    id              UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id         UUID          NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+    account_name    VARCHAR(50),
+    email           VARCHAR(255)  NOT NULL,
+    email_verified  BOOLEAN       NOT NULL DEFAULT FALSE,
+    password_hash   VARCHAR(512),
+    password_salt   VARCHAR(128),
+    google_linked   BOOLEAN       NOT NULL DEFAULT FALSE,
+    CHECK (password_salt IS NULL OR password_hash IS NOT NULL)
 );
-CREATE INDEX ix_pwd_tokens_user ON password_setup_tokens(user_id);
+CREATE UNIQUE INDEX ux_user_accounts_email ON user_accounts (lower(email));
+CREATE UNIQUE INDEX ux_user_accounts_account_name ON user_accounts (lower(account_name));
+
+CREATE TABLE email_link_tokens (
+    id               UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_account_id  UUID         NOT NULL REFERENCES user_accounts(id) ON DELETE CASCADE,
+    token_hash       VARCHAR(128) NOT NULL UNIQUE,
+    purpose          VARCHAR(20)  NOT NULL CHECK (purpose IN ('AccountSetup', 'PasswordReset')),
+    expires_at       TIMESTAMPTZ  NOT NULL,
+    used_at          TIMESTAMPTZ,
+    created_at       TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    CHECK (expires_at > created_at)
+);
+CREATE INDEX ix_email_link_tokens_account ON email_link_tokens(user_account_id);
 
 -- ERD: AUDIT LOG  (USER 1 --< 0..* "performs")
 CREATE TABLE audit_logs (
@@ -108,7 +122,7 @@ CREATE TABLE exam_sessions (
     title                    VARCHAR(200) NOT NULL,
     start_time               TIMESTAMPTZ  NOT NULL,
     end_time                 TIMESTAMPTZ  NOT NULL,
-    time_limit_per_question  INT          NOT NULL CHECK (time_limit_per_question > 0),  -- seconds
+    time_limit_per_answer_seconds  INT    NOT NULL CHECK (time_limit_per_answer_seconds > 0),  -- seconds
     max_follow_ups           INT          NOT NULL DEFAULT 2 CHECK (max_follow_ups >= 0),
     status                   VARCHAR(20)  NOT NULL DEFAULT 'Draft'
                              CHECK (status IN ('Draft', 'Published', 'Closed')),
@@ -130,9 +144,98 @@ CREATE TABLE questions (
 CREATE TABLE rubrics (
     id           UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
     question_id  UUID          NOT NULL UNIQUE REFERENCES questions(id) ON DELETE CASCADE,
-    criteria     TEXT          NOT NULL,
-    max_score    NUMERIC(5,2)  NOT NULL CHECK (max_score > 0)
+    max_score    NUMERIC(5,2)  NOT NULL DEFAULT 0 CHECK (max_score >= 0)
 );
+
+CREATE TABLE rubric_criteria (
+    id           UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
+    rubric_id    UUID          NOT NULL REFERENCES rubrics(id) ON DELETE CASCADE,
+    order_no     INT           NOT NULL CHECK (order_no > 0),
+    description  TEXT          NOT NULL CHECK (length(btrim(description)) > 0),
+    max_points   NUMERIC(5,2)  NOT NULL CHECK (max_points >= 0),
+    CONSTRAINT uq_rubric_criteria_order UNIQUE (rubric_id, order_no) DEFERRABLE INITIALLY DEFERRED
+);
+
+CREATE OR REPLACE FUNCTION update_rubric_max_score_from_criteria() RETURNS TRIGGER AS $$
+BEGIN
+    IF TG_OP = 'DELETE' OR (TG_OP = 'UPDATE' AND OLD.rubric_id <> NEW.rubric_id) THEN
+        UPDATE rubrics
+        SET max_score = COALESCE((SELECT SUM(max_points) FROM rubric_criteria WHERE rubric_id = OLD.rubric_id), 0)
+        WHERE id = OLD.rubric_id;
+    END IF;
+
+    IF TG_OP <> 'DELETE' THEN
+        UPDATE rubrics
+        SET max_score = COALESCE((SELECT SUM(max_points) FROM rubric_criteria WHERE rubric_id = NEW.rubric_id), 0)
+        WHERE id = NEW.rubric_id;
+    END IF;
+
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_rubric_max_score
+AFTER INSERT OR UPDATE OR DELETE ON rubric_criteria
+FOR EACH ROW EXECUTE FUNCTION update_rubric_max_score_from_criteria();
+
+CREATE OR REPLACE FUNCTION assert_rubric_has_criteria(p_rubric_id UUID) RETURNS VOID AS $$
+DECLARE
+    criterion_count BIGINT;
+    calculated_max_score NUMERIC;
+    stored_max_score NUMERIC(5,2);
+BEGIN
+    SELECT max_score INTO stored_max_score FROM rubrics WHERE id = p_rubric_id;
+    IF NOT FOUND THEN
+        RETURN;
+    END IF;
+
+    SELECT COUNT(*), COALESCE(SUM(max_points), 0)
+    INTO criterion_count, calculated_max_score
+    FROM rubric_criteria
+    WHERE rubric_id = p_rubric_id;
+
+    IF criterion_count = 0 THEN
+        RAISE EXCEPTION 'Rubric % must have at least one criterion.', p_rubric_id
+            USING ERRCODE = '23514';
+    END IF;
+    IF calculated_max_score <= 0 THEN
+        RAISE EXCEPTION 'Rubric % must have a positive total max score.', p_rubric_id
+            USING ERRCODE = '23514';
+    END IF;
+    IF stored_max_score IS DISTINCT FROM calculated_max_score THEN
+        RAISE EXCEPTION 'Rubric % max_score does not match its criteria.', p_rubric_id
+            USING ERRCODE = '23514';
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION check_rubric_criteria_constraints() RETURNS TRIGGER AS $$
+BEGIN
+    IF TG_TABLE_NAME = 'rubrics' THEN
+        IF TG_OP <> 'DELETE' THEN
+            PERFORM assert_rubric_has_criteria(NEW.id);
+        END IF;
+    ELSE
+        IF TG_OP <> 'INSERT' THEN
+            PERFORM assert_rubric_has_criteria(OLD.rubric_id);
+        END IF;
+        IF TG_OP <> 'DELETE' THEN
+            PERFORM assert_rubric_has_criteria(NEW.rubric_id);
+        END IF;
+    END IF;
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE CONSTRAINT TRIGGER trg_rubrics_require_criteria
+AFTER INSERT OR UPDATE OR DELETE ON rubrics
+DEFERRABLE INITIALLY DEFERRED
+FOR EACH ROW EXECUTE FUNCTION check_rubric_criteria_constraints();
+
+CREATE CONSTRAINT TRIGGER trg_rubric_criteria_require_parent
+AFTER INSERT OR UPDATE OR DELETE ON rubric_criteria
+DEFERRABLE INITIALLY DEFERRED
+FOR EACH ROW EXECUTE FUNCTION check_rubric_criteria_constraints();
 
 -- ---------------------------------------------------------------------
 -- F3 - AI Viva Interview
@@ -143,7 +246,7 @@ CREATE TABLE participants (
     id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     exam_session_id  UUID        NOT NULL REFERENCES exam_sessions(id) ON DELETE CASCADE,
     student_id       UUID        NOT NULL REFERENCES users(id),
-    joined_at        TIMESTAMPTZ,
+    joined_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
     status           VARCHAR(20) NOT NULL DEFAULT 'Registered'
                      CHECK (status IN ('Registered', 'InProgress', 'Completed')),
     UNIQUE (exam_session_id, student_id)

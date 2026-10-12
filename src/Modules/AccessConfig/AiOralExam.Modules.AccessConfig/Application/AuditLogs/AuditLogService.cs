@@ -14,8 +14,8 @@ public sealed record AuditLogDto(
     string TargetEntity,
     Guid? TargetId,
     DateTime CreatedAt,
-    string UserName,
-    string Email);
+    string? UserName,
+    string? Email);
 
 public interface IAuditLogService
 {
@@ -29,7 +29,10 @@ internal sealed class AuditLogService(AccessConfigDbContext db) : IAuditLogServi
         var q = from l in db.AuditLogs.AsNoTracking()
                 join u in db.Users.AsNoTracking()
                 on l.UserId equals u.Id
-                select new { l, u };
+                join account in db.UserAccounts.AsNoTracking()
+                    on u.Id equals account.UserId into accounts
+                from account in accounts.DefaultIfEmpty()
+                select new { l, u, account };
         if (userId is not null)
             q = q.Where(x => x.l.UserId == userId);
         if (!string.IsNullOrWhiteSpace(action))
@@ -42,7 +45,8 @@ internal sealed class AuditLogService(AccessConfigDbContext db) : IAuditLogServi
             q = q.Where(x => x.l.CreatedAt <= to);
         return await q.OrderByDescending(x => x.l.CreatedAt)
             .Take(take)
-            .Select(x => new AuditLogDto(x.l.Id, x.l.UserId, x.l.Action, x.l.TargetEntity, x.l.TargetId, x.l.CreatedAt, x.u.FullName, x.u.Email))
+            .Select(x => new AuditLogDto(x.l.Id, x.l.UserId, x.l.Action, x.l.TargetEntity, x.l.TargetId,
+                x.l.CreatedAt, x.u.FullName, x.account == null ? null : x.account.Email))
             .ToListAsync(ct);
     }
 }
