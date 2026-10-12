@@ -1,0 +1,1155 @@
+{
+  "realm": "aives",
+  "displayName": "AIVES",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "rememberMe": false,
+  "bruteForceProtected": true,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 28800,
+  "roles": {
+    "realm": [
+      {
+        "name": "Student"
+      },
+      {
+        "name": "Lecturer"
+      },
+      {
+        "name": "Administrator"
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "aives-web",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "fullScopeAllowed": true,
+      "redirectUris": [
+        "http://localhost:5173/*"
+      ],
+      "webOrigins": [
+        "http://localhost:5173",
+        "http://localhost:5080"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:5173/*"
+      },
+      "protocolMappers": [
+        {
+          "name": "api audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "aives-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        },
+        {
+          "name": "application realm roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "role",
+            "jsonType.label": "String",
+            "multivalued": "true",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        },
+        {
+          "name": "email",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-property-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "email",
+            "claim.name": "email",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "true"
+          }
+        },
+        {
+          "name": "name",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-full-name-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "name",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "aives-swagger",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "fullScopeAllowed": true,
+      "redirectUris": [
+        "http://localhost:5080/swagger/oauth2-redirect.html",
+        "https://localhost:7080/swagger/oauth2-redirect.html"
+      ],
+      "webOrigins": [
+        "http://localhost:5080",
+        "https://localhost:7080"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+      "protocolMappers": [
+        {
+          "name": "api audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "aives-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        },
+        {
+          "name": "application realm roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "role",
+            "jsonType.label": "String",
+            "multivalued": "true",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        },
+        {
+          "name": "email",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-property-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "email",
+            "claim.name": "email",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "true"
+          }
+        },
+        {
+          "name": "name",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-full-name-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "name",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "aives-api",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "bearerOnly": true
+    }
+  ],
+  "users": [
+    {
+      "id": "11111111-0000-0000-0000-000000000001",
+      "username": "admin@aives.edu.vn",
+      "email": "admin@aives.edu.vn",
+      "emailVerified": true,
+      "firstName": "System",
+      "enabled": true,
+      "realmRoles": [
+        "Administrator"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password@123",
+          "temporary": false
+        }
+      ],
+      "requiredActions": [],
+      "lastName": "Administrator"
+    },
+    {
+      "id": "11111111-0000-0000-0000-000000000002",
+      "username": "an.nv@aives.edu.vn",
+      "email": "an.nv@aives.edu.vn",
+      "emailVerified": true,
+      "firstName": "Nguyễn Văn",
+      "enabled": true,
+      "realmRoles": [
+        "Lecturer"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password@123",
+          "temporary": false
+        }
+      ],
+      "requiredActions": [],
+      "lastName": "An"
+    },
+    {
+      "id": "11111111-0000-0000-0000-000000000003",
+      "username": "binh.tt@aives.edu.vn",
+      "email": "binh.tt@aives.edu.vn",
+      "emailVerified": true,
+      "firstName": "Trần Thị",
+      "enabled": true,
+      "realmRoles": [
+        "Lecturer"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password@123",
+          "temporary": false
+        }
+      ],
+      "requiredActions": [],
+      "lastName": "Bình"
+    },
+    {
+      "id": "11111111-0000-0000-0000-000000000004",
+      "username": "chau.lm@aives.edu.vn",
+      "email": "chau.lm@aives.edu.vn",
+      "emailVerified": true,
+      "firstName": "Lê Minh",
+      "enabled": true,
+      "realmRoles": [
+        "Student"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password@123",
+          "temporary": false
+        }
+      ],
+      "requiredActions": [],
+      "lastName": "Châu"
+    },
+    {
+      "id": "11111111-0000-0000-0000-000000000005",
+      "username": "dung.pq@aives.edu.vn",
+      "email": "dung.pq@aives.edu.vn",
+      "emailVerified": true,
+      "firstName": "Phạm Quốc",
+      "enabled": true,
+      "realmRoles": [
+        "Student"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password@123",
+          "temporary": false
+        }
+      ],
+      "requiredActions": [],
+      "lastName": "Dũng"
+    },
+    {
+      "id": "11111111-0000-0000-0000-000000000006",
+      "username": "han.hg@aives.edu.vn",
+      "email": "han.hg@aives.edu.vn",
+      "emailVerified": true,
+      "firstName": "Hoàng Gia",
+      "enabled": true,
+      "realmRoles": [
+        "Student"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password@123",
+          "temporary": false
+        }
+      ],
+      "requiredActions": [],
+      "lastName": "Hân"
+    },
+    {
+      "id": "11111111-0000-0000-0000-000000000007",
+      "username": "khoa.vt@aives.edu.vn",
+      "email": "khoa.vt@aives.edu.vn",
+      "emailVerified": true,
+      "firstName": "Võ Thanh",
+      "enabled": true,
+      "realmRoles": [
+        "Student"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password@123",
+          "temporary": true
+        }
+      ],
+      "requiredActions": [
+        "UPDATE_PASSWORD"
+      ],
+      "lastName": "Khoa"
+    },
+    {
+      "id": "11111111-0000-0000-0000-000000000008",
+      "username": "tuan.dm@aives.edu.vn",
+      "email": "tuan.dm@aives.edu.vn",
+      "emailVerified": true,
+      "firstName": "Đỗ Minh",
+      "enabled": true,
+      "realmRoles": [
+        "Administrator"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password@123",
+          "temporary": false
+        }
+      ],
+      "requiredActions": [],
+      "lastName": "Tuấn"
+    },
+    {
+      "id": "11111111-0000-0000-0000-000000000009",
+      "username": "ha.dt@aives.edu.vn",
+      "email": "ha.dt@aives.edu.vn",
+      "emailVerified": true,
+      "firstName": "Đặng Thu",
+      "enabled": true,
+      "realmRoles": [
+        "Lecturer"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password@123",
+          "temporary": false
+        }
+      ],
+      "requiredActions": [],
+      "lastName": "Hà"
+    },
+    {
+      "id": "11111111-0000-0000-0000-000000000010",
+      "username": "long.nd@aives.edu.vn",
+      "email": "long.nd@aives.edu.vn",
+      "emailVerified": true,
+      "firstName": "Ngô Đức",
+      "enabled": true,
+      "realmRoles": [
+        "Lecturer"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password@123",
+          "temporary": false
+        }
+      ],
+      "requiredActions": [],
+      "lastName": "Long"
+    },
+    {
+      "id": "11111111-0000-0000-0000-000000000011",
+      "username": "mai.bt@aives.edu.vn",
+      "email": "mai.bt@aives.edu.vn",
+      "emailVerified": true,
+      "firstName": "Bùi Thị",
+      "enabled": true,
+      "realmRoles": [
+        "Lecturer"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password@123",
+          "temporary": false
+        }
+      ],
+      "requiredActions": [],
+      "lastName": "Mai"
+    },
+    {
+      "id": "11111111-0000-0000-0000-000000000012",
+      "username": "nam.lq@aives.edu.vn",
+      "email": "nam.lq@aives.edu.vn",
+      "emailVerified": true,
+      "firstName": "Lý Quang",
+      "enabled": true,
+      "realmRoles": [
+        "Lecturer"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password@123",
+          "temporary": false
+        }
+      ],
+      "requiredActions": [],
+      "lastName": "Nam"
+    },
+    {
+      "id": "11111111-0000-0000-0000-000000000101",
+      "username": "hoa.dp@aives.edu.vn",
+      "email": "hoa.dp@aives.edu.vn",
+      "emailVerified": true,
+      "firstName": "Dương Phương",
+      "enabled": true,
+      "realmRoles": [
+        "Student"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password@123",
+          "temporary": false
+        }
+      ],
+      "requiredActions": [],
+      "lastName": "Hoa"
+    },
+    {
+      "id": "11111111-0000-0000-0000-000000000102",
+      "username": "my.pp@aives.edu.vn",
+      "email": "my.pp@aives.edu.vn",
+      "emailVerified": true,
+      "firstName": "Phan Phương",
+      "enabled": true,
+      "realmRoles": [
+        "Student"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password@123",
+          "temporary": false
+        }
+      ],
+      "requiredActions": [],
+      "lastName": "My"
+    },
+    {
+      "id": "11111111-0000-0000-0000-000000000103",
+      "username": "tam.pt@aives.edu.vn",
+      "email": "tam.pt@aives.edu.vn",
+      "emailVerified": true,
+      "firstName": "Phan Thanh",
+      "enabled": true,
+      "realmRoles": [
+        "Student"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password@123",
+          "temporary": false
+        }
+      ],
+      "requiredActions": [],
+      "lastName": "Tâm"
+    },
+    {
+      "id": "11111111-0000-0000-0000-000000000104",
+      "username": "uyen.pn@aives.edu.vn",
+      "email": "uyen.pn@aives.edu.vn",
+      "emailVerified": true,
+      "firstName": "Phan Ngọc",
+      "enabled": true,
+      "realmRoles": [
+        "Student"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password@123",
+          "temporary": false
+        }
+      ],
+      "requiredActions": [],
+      "lastName": "Uyên"
+    },
+    {
+      "id": "11111111-0000-0000-0000-000000000105",
+      "username": "vinh.dg@aives.edu.vn",
+      "email": "vinh.dg@aives.edu.vn",
+      "emailVerified": true,
+      "firstName": "Đặng Gia",
+      "enabled": true,
+      "realmRoles": [
+        "Student"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password@123",
+          "temporary": false
+        }
+      ],
+      "requiredActions": [],
+      "lastName": "Vinh"
+    },
+    {
+      "id": "11111111-0000-0000-0000-000000000106",
+      "username": "hieu.db@aives.edu.vn",
+      "email": "hieu.db@aives.edu.vn",
+      "emailVerified": true,
+      "firstName": "Đặng Bảo",
+      "enabled": true,
+      "realmRoles": [
+        "Student"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password@123",
+          "temporary": false
+        }
+      ],
+      "requiredActions": [],
+      "lastName": "Hiếu"
+    },
+    {
+      "id": "11111111-0000-0000-0000-000000000107",
+      "username": "loc.hv@aives.edu.vn",
+      "email": "loc.hv@aives.edu.vn",
+      "emailVerified": true,
+      "firstName": "Hoàng Văn",
+      "enabled": true,
+      "realmRoles": [
+        "Student"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password@123",
+          "temporary": false
+        }
+      ],
+      "requiredActions": [],
+      "lastName": "Lộc"
+    },
+    {
+      "id": "11111111-0000-0000-0000-000000000108",
+      "username": "son.lq@aives.edu.vn",
+      "email": "son.lq@aives.edu.vn",
+      "emailVerified": true,
+      "firstName": "Lê Quốc",
+      "enabled": true,
+      "realmRoles": [
+        "Student"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password@123",
+          "temporary": false
+        }
+      ],
+      "requiredActions": [],
+      "lastName": "Sơn"
+    },
+    {
+      "id": "11111111-0000-0000-0000-000000000109",
+      "username": "tu.dm@aives.edu.vn",
+      "email": "tu.dm@aives.edu.vn",
+      "emailVerified": true,
+      "firstName": "Dương Minh",
+      "enabled": true,
+      "realmRoles": [
+        "Student"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password@123",
+          "temporary": false
+        }
+      ],
+      "requiredActions": [],
+      "lastName": "Tú"
+    },
+    {
+      "id": "11111111-0000-0000-0000-000000000110",
+      "username": "tien.bh@aives.edu.vn",
+      "email": "tien.bh@aives.edu.vn",
+      "emailVerified": true,
+      "firstName": "Bùi Hoàng",
+      "enabled": true,
+      "realmRoles": [
+        "Student"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password@123",
+          "temporary": false
+        }
+      ],
+      "requiredActions": [],
+      "lastName": "Tiến"
+    },
+    {
+      "id": "11111111-0000-0000-0000-000000000111",
+      "username": "hai.bb@aives.edu.vn",
+      "email": "hai.bb@aives.edu.vn",
+      "emailVerified": true,
+      "firstName": "Bùi Bảo",
+      "enabled": true,
+      "realmRoles": [
+        "Student"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password@123",
+          "temporary": false
+        }
+      ],
+      "requiredActions": [],
+      "lastName": "Hải"
+    },
+    {
+      "id": "11111111-0000-0000-0000-000000000112",
+      "username": "linh.pt@aives.edu.vn",
+      "email": "linh.pt@aives.edu.vn",
+      "emailVerified": true,
+      "firstName": "Phạm Thị",
+      "enabled": true,
+      "realmRoles": [
+        "Student"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password@123",
+          "temporary": false
+        }
+      ],
+      "requiredActions": [],
+      "lastName": "Linh"
+    },
+    {
+      "id": "11111111-0000-0000-0000-000000000113",
+      "username": "quynh.pt@aives.edu.vn",
+      "email": "quynh.pt@aives.edu.vn",
+      "emailVerified": true,
+      "firstName": "Phạm Thị",
+      "enabled": true,
+      "realmRoles": [
+        "Student"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password@123",
+          "temporary": false
+        }
+      ],
+      "requiredActions": [],
+      "lastName": "Quỳnh"
+    },
+    {
+      "id": "11111111-0000-0000-0000-000000000114",
+      "username": "trung.hq@aives.edu.vn",
+      "email": "trung.hq@aives.edu.vn",
+      "emailVerified": true,
+      "firstName": "Hoàng Quốc",
+      "enabled": true,
+      "realmRoles": [
+        "Student"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password@123",
+          "temporary": false
+        }
+      ],
+      "requiredActions": [],
+      "lastName": "Trung"
+    },
+    {
+      "id": "11111111-0000-0000-0000-000000000115",
+      "username": "nhat.hg@aives.edu.vn",
+      "email": "nhat.hg@aives.edu.vn",
+      "emailVerified": true,
+      "firstName": "Hồ Gia",
+      "enabled": true,
+      "realmRoles": [
+        "Student"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password@123",
+          "temporary": false
+        }
+      ],
+      "requiredActions": [],
+      "lastName": "Nhật"
+    },
+    {
+      "id": "11111111-0000-0000-0000-000000000116",
+      "username": "giang.pk@aives.edu.vn",
+      "email": "giang.pk@aives.edu.vn",
+      "emailVerified": true,
+      "firstName": "Phan Khánh",
+      "enabled": true,
+      "realmRoles": [
+        "Student"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password@123",
+          "temporary": false
+        }
+      ],
+      "requiredActions": [],
+      "lastName": "Giang"
+    },
+    {
+      "id": "11111111-0000-0000-0000-000000000117",
+      "username": "lan.tk@aives.edu.vn",
+      "email": "lan.tk@aives.edu.vn",
+      "emailVerified": true,
+      "firstName": "Trần Khánh",
+      "enabled": true,
+      "realmRoles": [
+        "Student"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password@123",
+          "temporary": false
+        }
+      ],
+      "requiredActions": [],
+      "lastName": "Lan"
+    },
+    {
+      "id": "11111111-0000-0000-0000-000000000118",
+      "username": "quan.vm@aives.edu.vn",
+      "email": "quan.vm@aives.edu.vn",
+      "emailVerified": true,
+      "firstName": "Võ Minh",
+      "enabled": true,
+      "realmRoles": [
+        "Student"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password@123",
+          "temporary": false
+        }
+      ],
+      "requiredActions": [],
+      "lastName": "Quân"
+    },
+    {
+      "id": "11111111-0000-0000-0000-000000000119",
+      "username": "tri.pt@aives.edu.vn",
+      "email": "tri.pt@aives.edu.vn",
+      "emailVerified": true,
+      "firstName": "Phạm Thanh",
+      "enabled": true,
+      "realmRoles": [
+        "Student"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password@123",
+          "temporary": false
+        }
+      ],
+      "requiredActions": [],
+      "lastName": "Trí"
+    },
+    {
+      "id": "11111111-0000-0000-0000-000000000120",
+      "username": "khoi.dv@aives.edu.vn",
+      "email": "khoi.dv@aives.edu.vn",
+      "emailVerified": true,
+      "firstName": "Đỗ Văn",
+      "enabled": true,
+      "realmRoles": [
+        "Student"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password@123",
+          "temporary": false
+        }
+      ],
+      "requiredActions": [],
+      "lastName": "Khôi"
+    },
+    {
+      "id": "11111111-0000-0000-0000-000000000121",
+      "username": "duy.hg@aives.edu.vn",
+      "email": "duy.hg@aives.edu.vn",
+      "emailVerified": true,
+      "firstName": "Huỳnh Gia",
+      "enabled": false,
+      "realmRoles": [
+        "Student"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password@123",
+          "temporary": false
+        }
+      ],
+      "requiredActions": [],
+      "lastName": "Duy"
+    },
+    {
+      "id": "11111111-0000-0000-0000-000000000122",
+      "username": "khang.ph@aives.edu.vn",
+      "email": "khang.ph@aives.edu.vn",
+      "emailVerified": true,
+      "firstName": "Phạm Hoàng",
+      "enabled": true,
+      "realmRoles": [
+        "Student"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password@123",
+          "temporary": false
+        }
+      ],
+      "requiredActions": [],
+      "lastName": "Khang"
+    },
+    {
+      "id": "11111111-0000-0000-0000-000000000123",
+      "username": "phuong.nt@aives.edu.vn",
+      "email": "phuong.nt@aives.edu.vn",
+      "emailVerified": true,
+      "firstName": "Ngô Thu",
+      "enabled": true,
+      "realmRoles": [
+        "Student"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password@123",
+          "temporary": false
+        }
+      ],
+      "requiredActions": [],
+      "lastName": "Phương"
+    },
+    {
+      "id": "11111111-0000-0000-0000-000000000124",
+      "username": "trang.lt@aives.edu.vn",
+      "email": "trang.lt@aives.edu.vn",
+      "emailVerified": true,
+      "firstName": "Lý Thị",
+      "enabled": true,
+      "realmRoles": [
+        "Student"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password@123",
+          "temporary": false
+        }
+      ],
+      "requiredActions": [],
+      "lastName": "Trang"
+    },
+    {
+      "id": "11111111-0000-0000-0000-000000000125",
+      "username": "dat.tm@aives.edu.vn",
+      "email": "dat.tm@aives.edu.vn",
+      "emailVerified": true,
+      "firstName": "Trần Minh",
+      "enabled": true,
+      "realmRoles": [
+        "Student"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password@123",
+          "temporary": false
+        }
+      ],
+      "requiredActions": [],
+      "lastName": "Đạt"
+    },
+    {
+      "id": "11111111-0000-0000-0000-000000000126",
+      "username": "cuong.da@aives.edu.vn",
+      "email": "cuong.da@aives.edu.vn",
+      "emailVerified": true,
+      "firstName": "Đỗ Anh",
+      "enabled": true,
+      "realmRoles": [
+        "Student"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password@123",
+          "temporary": false
+        }
+      ],
+      "requiredActions": [],
+      "lastName": "Cường"
+    },
+    {
+      "id": "11111111-0000-0000-0000-000000000127",
+      "username": "huong.hk@aives.edu.vn",
+      "email": "huong.hk@aives.edu.vn",
+      "emailVerified": true,
+      "firstName": "Hoàng Khánh",
+      "enabled": true,
+      "realmRoles": [
+        "Student"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password@123",
+          "temporary": false
+        }
+      ],
+      "requiredActions": [],
+      "lastName": "Hương"
+    },
+    {
+      "id": "11111111-0000-0000-0000-000000000128",
+      "username": "phuc.td@aives.edu.vn",
+      "email": "phuc.td@aives.edu.vn",
+      "emailVerified": true,
+      "firstName": "Trần Đức",
+      "enabled": true,
+      "realmRoles": [
+        "Student"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password@123",
+          "temporary": false
+        }
+      ],
+      "requiredActions": [],
+      "lastName": "Phúc"
+    },
+    {
+      "id": "11111111-0000-0000-0000-000000000129",
+      "username": "thang.pd@aives.edu.vn",
+      "email": "thang.pd@aives.edu.vn",
+      "emailVerified": true,
+      "firstName": "Phan Đức",
+      "enabled": true,
+      "realmRoles": [
+        "Student"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password@123",
+          "temporary": false
+        }
+      ],
+      "requiredActions": [],
+      "lastName": "Thắng"
+    },
+    {
+      "id": "11111111-0000-0000-0000-000000000130",
+      "username": "yen.dm@aives.edu.vn",
+      "email": "yen.dm@aives.edu.vn",
+      "emailVerified": true,
+      "firstName": "Đỗ Minh",
+      "enabled": true,
+      "realmRoles": [
+        "Student"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password@123",
+          "temporary": false
+        }
+      ],
+      "requiredActions": [],
+      "lastName": "Yến"
+    },
+    {
+      "id": "11111111-0000-0000-0000-000000000131",
+      "username": "bao.ph@aives.edu.vn",
+      "email": "bao.ph@aives.edu.vn",
+      "emailVerified": true,
+      "firstName": "Phạm Hữu",
+      "enabled": true,
+      "realmRoles": [
+        "Student"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password@123",
+          "temporary": false
+        }
+      ],
+      "requiredActions": [],
+      "lastName": "Bảo"
+    },
+    {
+      "id": "11111111-0000-0000-0000-000000000132",
+      "username": "huy.hv@aives.edu.vn",
+      "email": "huy.hv@aives.edu.vn",
+      "emailVerified": true,
+      "firstName": "Hồ Văn",
+      "enabled": true,
+      "realmRoles": [
+        "Student"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password@123",
+          "temporary": false
+        }
+      ],
+      "requiredActions": [],
+      "lastName": "Huy"
+    },
+    {
+      "id": "11111111-0000-0000-0000-000000000133",
+      "username": "nhi.hb@aives.edu.vn",
+      "email": "nhi.hb@aives.edu.vn",
+      "emailVerified": true,
+      "firstName": "Hồ Bảo",
+      "enabled": true,
+      "realmRoles": [
+        "Student"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password@123",
+          "temporary": false
+        }
+      ],
+      "requiredActions": [],
+      "lastName": "Nhi"
+    },
+    {
+      "id": "11111111-0000-0000-0000-000000000134",
+      "username": "thao.pp@aives.edu.vn",
+      "email": "thao.pp@aives.edu.vn",
+      "emailVerified": true,
+      "firstName": "Phan Phương",
+      "enabled": true,
+      "realmRoles": [
+        "Student"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password@123",
+          "temporary": false
+        }
+      ],
+      "requiredActions": [],
+      "lastName": "Thảo"
+    },
+    {
+      "id": "11111111-0000-0000-0000-000000000135",
+      "username": "vy.ht@aives.edu.vn",
+      "email": "vy.ht@aives.edu.vn",
+      "emailVerified": true,
+      "firstName": "Hoàng Thanh",
+      "enabled": true,
+      "realmRoles": [
+        "Student"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password@123",
+          "temporary": false
+        }
+      ],
+      "requiredActions": [],
+      "lastName": "Vy"
+    },
+    {
+      "id": "11111111-0000-0000-0000-000000000136",
+      "username": "anh.vq@aives.edu.vn",
+      "email": "anh.vq@aives.edu.vn",
+      "emailVerified": true,
+      "firstName": "Vũ Quốc",
+      "enabled": true,
+      "realmRoles": [
+        "Student"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password@123",
+          "temporary": false
+        }
+      ],
+      "requiredActions": [],
+      "lastName": "Anh"
+    }
+  ],
+  "smtpServer": {
+    "fromDisplayName": "AIVES",
+    "auth": "false",
+    "host": "mailpit",
+    "port": "1025",
+    "from": "noreply@aives.local",
+    "starttls": "false",
+    "ssl": "false"
+  }
+}
