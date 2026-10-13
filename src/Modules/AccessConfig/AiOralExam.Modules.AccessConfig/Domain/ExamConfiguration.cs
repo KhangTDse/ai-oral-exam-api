@@ -53,18 +53,24 @@ public class Question
     public Guid ExamSessionId { get; set; }
     public int OrderNo { get; set; }
     public string Content { get; set; } = null!;
-    public Rubric Rubric { get; set; } = null!;
+
+    /// <summary>Null while the session is a draft and the lecturer has not defined the rubric yet.</summary>
+    public Rubric? Rubric { get; set; }
 }
 
-/// <summary>ERD: RUBRIC - exactly one rubric per question.</summary>
+/// <summary>ERD: RUBRIC - at most one rubric per question, made of criteria.</summary>
 public class Rubric
 {
     public Guid Id { get; set; }
     public Guid QuestionId { get; set; }
+
+    /// <summary>Sum of Criteria.MaxPoints, kept in sync by a trigger in 01_schema.sql.</summary>
     public decimal MaxScore { get; set; }
+
     public ICollection<RubricCriterion> Criteria { get; set; } = new List<RubricCriterion>();
 }
 
+/// <summary>ERD: RUBRIC CRITERION - one scoring item of a rubric.</summary>
 public class RubricCriterion
 {
     public Guid Id { get; set; }

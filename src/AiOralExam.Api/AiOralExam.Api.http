@@ -1,13 +1,10 @@
 # Use with VS Code REST Client or Visual Studio (.http). Start the API first: dotnet run --project src/AiOralExam.Api
 @host = http://localhost:5080
 
-### Sign in as a student who has not taken the exam yet -> copy accessToken into @token
-POST {{host}}/api/auth/login
-Content-Type: application/json
-
-{ "email": "han.hg@aives.edu.vn", "password": "Password@123" }
-
-###
+# Sign-in happens in Keycloak (password grant is disabled), so get a token through Swagger:
+# http://localhost:5080/swagger -> Authorize -> sign in as han.hg@aives.edu.vn / Password@123,
+# run any request and copy the token from the "Authorization: Bearer ..." header of the shown curl command.
+# Tokens expire after 5 minutes.
 @token = paste-access-token-here
 
 ### My exam sessions

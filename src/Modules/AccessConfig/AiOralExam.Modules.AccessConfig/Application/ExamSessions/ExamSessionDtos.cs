@@ -1,4 +1,4 @@
-using AiOralExam.Modules.AccessConfig.Application.Rubrics;
+using AiOralExam.Modules.AccessConfig.Contracts;
 
 namespace AiOralExam.Modules.AccessConfig.Application.ExamSessions;
 
@@ -17,7 +17,7 @@ public sealed record QuestionDto(
     Guid Id,
     int OrderNo,
     string Content,
-    IReadOnlyList<RubricCriterionDto> Criteria,
+    IReadOnlyList<RubricCriterionInfo> RubricCriteria,
     decimal MaxScore);
 
 public sealed record ExamSessionDetailDto(

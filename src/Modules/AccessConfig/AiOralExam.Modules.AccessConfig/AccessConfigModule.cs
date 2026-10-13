@@ -10,9 +10,7 @@ using AiOralExam.Modules.AccessConfig.Application.Questions;
 using AiOralExam.Modules.AccessConfig.Application.Rubrics;
 using AiOralExam.Modules.AccessConfig.Application.Users;
 using AiOralExam.Modules.AccessConfig.Contracts;
-using AiOralExam.Modules.AccessConfig.Domain;
 using AiOralExam.Modules.AccessConfig.Infrastructure;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -26,11 +24,7 @@ public static class AccessConfigModule
             .UseNpgsql(connectionString)
             .UseSnakeCaseNamingConvention());
 
-        // ASP.NET Core Identity PasswordHasher: PBKDF2-HMAC-SHA512, the salt is inside the hash
-        services.AddScoped<IPasswordHasher<UserAccount>, PasswordHasher<UserAccount>>();
-        services.AddScoped<IJwtTokenIssuer, JwtTokenIssuer>();
         services.AddScoped<IAuthService, AuthService>();
-        services.AddScoped<IAccountSetupEmailSender, UnconfiguredAccountSetupEmailSender>();
         services.AddScoped<IExamSessionQueries, ExamSessionQueries>();
         services.AddScoped<IExamSessionCommands, ExamSessionCommands>();
         services.AddScoped<ICourseService, CourseService>();

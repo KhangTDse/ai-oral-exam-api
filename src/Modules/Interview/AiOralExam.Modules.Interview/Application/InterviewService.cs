@@ -177,18 +177,24 @@ internal sealed class InterviewService(
 
         // 3) Main question done -> score against the rubric (stored once, Reporting only reads it)
         var score = await scorer.ScoreAsync(new RubricScoringRequest(
-            question.Content, question.Criteria, question.MaxScore, dialogue, DefaultLanguage), ct);
+            question.Content, question.Criteria, dialogue, DefaultLanguage), ct);
 
-        var suggested = Math.Clamp(score.SuggestedScore, 0, question.MaxScore);
-        response.IsFinished = true;
-        response.Evaluation = new AiEvaluation
+        // One CriterionScore per rubric criterion, clamped to 0..MaxPoints (a missing criterion counts as 0)
+        var criterionScores = question.Criteria.Select(c =>
         {
-            Id = Guid.NewGuid(),
-            QuestionResponseId = response.Id,
-            SuggestedScore = suggested,
-            Feedback = score.Feedback,
-            EvaluatedAt = now,
-        };
+            var given = score.Scores.FirstOrDefault(s => s.CriterionId == c.Id);
+            return new CriterionScore
+            {
+                Id = Guid.NewGuid(),
+                QuestionResponseId = response.Id,
+                RubricCriterionId = c.Id,
+                Points = Math.Clamp(given?.Points ?? 0, 0, c.MaxPoints),
+                Comment = given?.Comment,
+            };
+        }).ToList();
+        response.RecordAiEvaluation(criterionScores, score.Feedback, now);
+        db.CriterionScores.AddRange(criterionScores);
+        var suggested = response.AiSuggestedScore!.Value;
 
         // 4) Next question or finish
         var next = session.Questions.FirstOrDefault(q => q.OrderNo > question.OrderNo);
@@ -230,7 +236,6 @@ internal sealed class InterviewService(
         var attempt = await db.InterviewAttempts
                           .Include(a => a.Participant)
                           .Include(a => a.Responses).ThenInclude(r => r.Turns)
-                          .Include(a => a.Responses).ThenInclude(r => r.Evaluation)
                           .AsSplitQuery()
                           .FirstOrDefaultAsync(a => a.Id == attemptId, ct)
                       ?? throw new NotFoundException("attempt_not_found", "Attempt not found.");

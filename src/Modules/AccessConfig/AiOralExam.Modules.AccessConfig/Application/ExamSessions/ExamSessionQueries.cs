@@ -54,7 +54,7 @@ internal sealed class ExamSessionQueries(AccessConfigDbContext db, ICurrentUser 
     {
         var s = await db.ExamSessions.AsNoTracking()
                     .Include(x => x.Course).ThenInclude(c => c.Lecturers)
-                    .Include(x => x.Questions).ThenInclude(q => q.Rubric).ThenInclude(r => r.Criteria)
+                    .Include(x => x.Questions).ThenInclude(q => q.Rubric!).ThenInclude(r => r.Criteria)
                     .AsSplitQuery()
                     .FirstOrDefaultAsync(x => x.Id == id, ct)
                 ?? throw new NotFoundException("exam_session_not_found", "Exam session not found.");
@@ -67,9 +67,7 @@ internal sealed class ExamSessionQueries(AccessConfigDbContext db, ICurrentUser 
             s.TimeLimitPerAnswerSeconds, s.MaxFollowUps, s.Status.ToString(),
             s.Questions.OrderBy(q => q.OrderNo)
                 .Select(q => new QuestionDto(q.Id, q.OrderNo, q.Content,
-                    q.Rubric.Criteria.OrderBy(c => c.OrderNo)
-                        .Select(c => new RubricCriterionDto(c.Id, c.OrderNo, c.Description, c.MaxPoints)).ToList(),
-                    q.Rubric.MaxScore))
+                    ExamConfigurationApi.ToCriteria(q.Rubric), q.Rubric?.MaxScore ?? 0))
                 .ToList());
     }
 }
