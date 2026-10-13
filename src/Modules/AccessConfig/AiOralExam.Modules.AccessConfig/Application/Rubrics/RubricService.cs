@@ -74,7 +74,7 @@ internal sealed class RubricService(AccessConfigDbContext db, ICurrentUser me) :
         Validate(r);
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         await Editable(sid, ct);
-        var q = await db.Questions.Include(x => x.Rubric).ThenInclude(x => x.Criteria)
+        var q = await db.Questions.Include(x => x.Rubric).ThenInclude(x => x!.Criteria)
             .FirstOrDefaultAsync(x => x.Id == qid && x.ExamSessionId == sid, ct) ??
             throw new NotFoundException("question_not_found", "Question not found.");
 

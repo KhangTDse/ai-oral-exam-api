@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
-using AiOralExam.Modules.AccessConfig.Application.Auth;
 using AiOralExam.Modules.AccessConfig.Application.Courses;
 using AiOralExam.Modules.AccessConfig.Domain;
 using AiOralExam.Modules.AccessConfig.Infrastructure;
@@ -23,6 +22,8 @@ public sealed record UserDto(
     bool IsActive);
 
 public sealed record CreateUserRequest(
+    Guid Id,
+    [Required, StringLength(50)] string Username,
     [Required] string FullName,
     [EmailAddress, Required] string Email,
     UserRole Role, string? StudentCode,
@@ -52,7 +53,6 @@ public interface IUserService
 internal sealed class UserService(
     AccessConfigDbContext db,
     ICurrentUser me,
-    IAccountSetupEmailSender emailSender,
     TimeProvider timeProvider) : IUserService
 {
     static string? Clean(string? x)
@@ -119,7 +119,7 @@ internal sealed class UserService(
         => new(
         u.Id,
         u.FullName,
-        u.Account?.Email,
+        u.Email,
         u.Role.Name,
         u.StudentCode,
         u.LecturerCode,
@@ -127,7 +127,7 @@ internal sealed class UserService(
 
     public async Task<IReadOnlyList<UserDto>> ListAsync(UserRole? role, bool? active, string? search, CancellationToken ct)
     {
-        IQueryable<User> q = db.Users.AsNoTracking().Include(x => x.Role).Include(x => x.Account);
+        IQueryable<User> q = db.Users.AsNoTracking().Include(x => x.Role);
         if (role is not null)
             q = q.Where(x => x.Role.Name == role.ToString());
         if (active is not null)
@@ -135,8 +135,8 @@ internal sealed class UserService(
         if (!string.IsNullOrWhiteSpace(search))
         {
             var p = $"%{search.Trim()}%";
-            q = q.Where(x => (x.FullName != null && EF.Functions.ILike(x.FullName, p)) ||
-            (x.Account != null && EF.Functions.ILike(x.Account.Email, p)) ||
+            q = q.Where(x => EF.Functions.ILike(x.FullName, p) ||
+            EF.Functions.ILike(x.Email, p) ||
             EF.Functions.ILike(x.StudentCode ?? "", p) ||
             EF.Functions.ILike(x.LecturerCode ?? "", p));
         }
@@ -145,18 +145,35 @@ internal sealed class UserService(
     }
 
     public async Task<UserDto> GetAsync(Guid id, CancellationToken ct)
-        => D(await db.Users.Include(x => x.Role).Include(x => x.Account)
+        => D(await db.Users.Include(x => x.Role)
             .FirstOrDefaultAsync(x => x.Id == id, ct) ??
             throw new NotFoundException("user_not_found", "User not found."));
 
     public async Task<UserDto> CreateAsync(CreateUserRequest r, CancellationToken ct)
     {
+        if (r.Id == Guid.Empty)
+            throw new ValidationException(new Dictionary<string, string[]>
+            {
+                ["id"] = ["A Keycloak user ID is required."]
+            });
+
+        var username = r.Username.Trim();
+        if (username.Length == 0)
+            throw new ValidationException(new Dictionary<string, string[]>
+            {
+                ["username"] = ["A Keycloak username is required."]
+            });
+
         var email = r.Email.Trim().ToLowerInvariant();
         var s = Clean(r.StudentCode);
         var l = Clean(r.LecturerCode);
         ValidateCodes(r.Role, s, l);
-        if (await db.UserAccounts.AnyAsync(x => x.Email.ToLower() == email, ct))
+        if (await db.Users.AnyAsync(x => x.Email.ToLower() == email, ct))
             throw new ConflictException("email_exists", "Email is already in use.");
+        if (await db.Users.AnyAsync(x => x.Id == r.Id, ct))
+            throw new ConflictException("user_id_exists", "Keycloak user ID is already in use.");
+        if (await db.Users.AnyAsync(x => x.Username == username, ct))
+            throw new ConflictException("username_exists", "Username is already in use.");
         var role = await db.Roles.FirstOrDefaultAsync(x => x.Name == r.Role.ToString(), ct) ??
             throw new ValidationException(new Dictionary<string, string[]>
             {
@@ -166,53 +183,31 @@ internal sealed class UserService(
             throw new ConflictException("student_code_exists", "Student code is already in use.");
         if (l is not null && await db.Users.AnyAsync(x => x.LecturerCode == l, ct))
             throw new ConflictException("lecturer_code_exists", "Lecturer code is already in use.");
-        var account = new UserAccount
-        {
-            Id = Guid.NewGuid(),
-            AccountName = null,
-            Email = email,
-            EmailVerified = false,
-            PasswordSalt = null,
-            GoogleLinked = false
-        };
-
         var u = new User
         {
-            Id = Guid.NewGuid(),
+            Id = r.Id,
+            Username = username,
             FullName = r.FullName.Trim(),
+            Email = email,
             RoleId = role.Id,
             Role = role,
             StudentCode = s,
             LecturerCode = l,
             IsActive = true,
-            CreatedAt = DateTime.UtcNow,
-            Account = account
+            CreatedAt = timeProvider.GetUtcNow().UtcDateTime
         };
-        var (rawToken, tokenHash) = AccountSetupTokens.Create();
-        var now = timeProvider.GetUtcNow().UtcDateTime;
-        db.EmailLinkTokens.Add(new EmailLinkToken
-        {
-            Id = Guid.NewGuid(),
-            UserAccountId = account.Id,
-            UserAccount = account,
-            TokenHash = tokenHash,
-            Purpose = TokenPurpose.AccountSetup,
-            ExpiresAt = now.AddDays(3),
-            CreatedAt = now
-        });
         try
         {
             await using var transaction = await db.Database.BeginTransactionAsync(ct);
             db.Users.Add(u);
             await db.SaveChangesAsync(ct);
-            await emailSender.SendAccountSetupAsync(email, rawToken, ct);
             await CourseService.Audit(db, me.Id, "Create", "User", u.Id, ct);
             await transaction.CommitAsync(ct);
         }
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException
         {
             SqlState: PostgresErrorCodes.UniqueViolation,
-            ConstraintName: "ux_user_accounts_email"
+            ConstraintName: "ux_users_email"
         })
         {
             throw new ConflictException("email_exists", "Email is already in use.");
@@ -222,7 +217,7 @@ internal sealed class UserService(
 
     public async Task<UserDto> UpdateAsync(Guid id, UpdateUserRequest r, CancellationToken ct)
     {
-        var u = await db.Users.Include(x => x.Role).Include(x => x.Account)
+        var u = await db.Users.Include(x => x.Role)
             .FirstOrDefaultAsync(x => x.Id == id, ct) ??
             throw new NotFoundException("user_not_found", "User not found.");
         var values = PrepareUpdate(u, r);

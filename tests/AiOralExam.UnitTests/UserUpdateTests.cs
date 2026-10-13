@@ -74,11 +74,11 @@ public class UserUpdateTests
     }
 
     [Fact]
-    public void Deactivation_marks_user_inactive_and_preserves_the_user_and_account()
+    public void Deactivation_marks_user_inactive_and_preserves_the_user_identity()
     {
         var user = ExistingUser(UserRole.Student, "S001", null);
         var userId = user.Id;
-        var account = user.Account;
+        var email = user.Email;
         var request = new UpdateUserRequest("Existing User", "S001", null, false);
 
         var values = UserService.PrepareUpdate(user, request);
@@ -86,7 +86,7 @@ public class UserUpdateTests
 
         Assert.False(user.IsActive);
         Assert.Equal(userId, user.Id);
-        Assert.Same(account, user.Account);
+        Assert.Equal(email, user.Email);
     }
 
     [Fact]
@@ -106,7 +106,7 @@ public class UserUpdateTests
         Assert.Equal(Roles.Administrator, authorize.Roles);
     }
 
-    private static Role RoleFor(UserRole role) => new() { Id = (short)role, Name = role.ToString() };
+    private static Role RoleFor(UserRole role) => new() { Id = Guid.NewGuid(), Name = role.ToString() };
 
     private static User ExistingUser(UserRole role, string? studentCode, string? lecturerCode)
     {
@@ -116,7 +116,8 @@ public class UserUpdateTests
             Id = Guid.NewGuid(),
             RoleId = roleEntity.Id,
             Role = roleEntity,
-            Account = new UserAccount { Id = Guid.NewGuid(), Email = "user@example.test" },
+            Username = "user",
+            Email = "user@example.test",
             StudentCode = studentCode,
             LecturerCode = lecturerCode,
             FullName = "Existing User",

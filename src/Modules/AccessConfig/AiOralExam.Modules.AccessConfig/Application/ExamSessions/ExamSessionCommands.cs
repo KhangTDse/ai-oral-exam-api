@@ -55,7 +55,7 @@ internal sealed class ExamSessionCommands(AccessConfigDbContext db, ICurrentUser
     {
         var s = await db.ExamSessions
             .Include(x => x.Course).ThenInclude(x => x.Lecturers)
-            .Include(x => x.Questions).ThenInclude(x => x.Rubric).ThenInclude(x => x.Criteria)
+            .Include(x => x.Questions).ThenInclude(x => x.Rubric).ThenInclude(x => x!.Criteria)
             .FirstOrDefaultAsync(x => x.Id == id, ct) ??
             throw new NotFoundException("exam_session_not_found", "Exam session not found.");
         if (!me.IsInRole(Roles.Administrator) && s.Course.Lecturers.All(x => x.LecturerId != me.Id))

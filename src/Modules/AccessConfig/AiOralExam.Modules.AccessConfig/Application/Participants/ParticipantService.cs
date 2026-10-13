@@ -67,7 +67,7 @@ public sealed class ParticipantService(AccessConfigDbContext db, ICurrentUser me
             .Where(x => x.ExamSessionId == sid)
             .OrderBy(x => x.Student.FullName)
             .Select(x => new ParticipantDto(x.Id, x.StudentId, x.Student.StudentCode!, x.Student.FullName,
-                                            x.Student.Account == null ? null : x.Student.Account.Email,
+                                            x.Student.Email,
                                             x.Status.ToString(), x.JoinedAt)).ToListAsync(ct);
     }
 

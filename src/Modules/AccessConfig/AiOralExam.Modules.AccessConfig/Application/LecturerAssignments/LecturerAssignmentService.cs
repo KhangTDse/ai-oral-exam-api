@@ -31,7 +31,7 @@ internal sealed class LecturerAssignmentService(AccessConfigDbContext db, ICurre
         => await db.CourseLecturers.AsNoTracking()
         .Where(x => x.CourseId == courseId)
         .OrderBy(x => x.Lecturer.FullName)
-        .Select(x => new LecturerDto(x.LecturerId, x.Lecturer.FullName, x.Lecturer.Account == null ? null : x.Lecturer.Account.Email,
+        .Select(x => new LecturerDto(x.LecturerId, x.Lecturer.FullName, x.Lecturer.Email,
             x.Lecturer.LecturerCode, x.AssignedAt))
         .ToListAsync(ct);
 
@@ -39,7 +39,7 @@ internal sealed class LecturerAssignmentService(AccessConfigDbContext db, ICurre
     {
         if (!await db.Courses.AnyAsync(x => x.Id == courseId, ct))
             throw new NotFoundException("course_not_found", "Course not found.");
-        var u = await db.Users.Include(x => x.Role).Include(x => x.Account)
+        var u = await db.Users.Include(x => x.Role)
             .FirstOrDefaultAsync(x => x.Id == lecturerId, ct) ??
             throw new NotFoundException("user_not_found", "Lecturer not found.");
         if (u.Role.Name != UserRole.Lecturer.ToString())
@@ -60,7 +60,7 @@ internal sealed class LecturerAssignmentService(AccessConfigDbContext db, ICurre
         db.CourseLecturers.Add(x);
         await db.SaveChangesAsync(ct);
         await CourseService.Audit(db, me.Id, "AssignLecturer", "Course", courseId, ct);
-        return new(u.Id, u.FullName, u.Account?.Email, u.LecturerCode, x.AssignedAt);
+        return new(u.Id, u.FullName, u.Email, u.LecturerCode, x.AssignedAt);
     }
 
     public async Task RemoveAsync(Guid courseId, Guid lecturerId, CancellationToken ct)
