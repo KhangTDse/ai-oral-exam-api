@@ -22,7 +22,7 @@ internal sealed class ExamConfigurationApi(AccessConfigDbContext db) : IExamConf
             .AsNoTracking()
             .Where(s => examSessionIds.Contains(s.Id))
             .Include(s => s.Course)
-            .Include(s => s.Questions).ThenInclude(q => q.Rubric)
+            .Include(s => s.Questions).ThenInclude(q => q.Rubric!).ThenInclude(r => r.Criteria)
             .AsSplitQuery()
             .ToListAsync(ct);
 
@@ -43,6 +43,12 @@ internal sealed class ExamConfigurationApi(AccessConfigDbContext db) : IExamConf
             .ToListAsync(ct);
     }
 
+    public Task<UserAccessInfo?> GetUserAccessAsync(Guid userId, CancellationToken ct = default) =>
+        db.Users.AsNoTracking()
+            .Where(u => u.Id == userId)
+            .Select(u => new UserAccessInfo(u.Role.Name, u.IsActive))
+            .FirstOrDefaultAsync(ct);
+
     internal static ExamSessionInfo ToInfo(ExamSession s) => new(
         s.Id,
         s.CourseId,
@@ -51,11 +57,18 @@ internal sealed class ExamConfigurationApi(AccessConfigDbContext db) : IExamConf
         s.Title,
         s.StartTime,
         s.EndTime,
-        s.TimeLimitPerQuestion,
+        s.TimeLimitPerAnswerSeconds,
         s.MaxFollowUps,
         s.Status,
         s.Questions
             .OrderBy(q => q.OrderNo)
-            .Select(q => new QuestionInfo(q.Id, q.OrderNo, q.Content, q.Rubric.Criteria, q.Rubric.MaxScore))
+            .Select(q => new QuestionInfo(q.Id, q.OrderNo, q.Content, ToCriteria(q.Rubric), q.Rubric?.MaxScore ?? 0))
             .ToList());
+
+    internal static IReadOnlyList<RubricCriterionInfo> ToCriteria(Rubric? rubric) =>
+        rubric is null
+            ? []
+            : rubric.Criteria.OrderBy(c => c.OrderNo)
+                .Select(c => new RubricCriterionInfo(c.Id, c.OrderNo, c.Description, c.MaxPoints))
+                .ToList();
 }

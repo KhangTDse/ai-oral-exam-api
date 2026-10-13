@@ -1,5 +1,4 @@
 using AiOralExam.Modules.AccessConfig.Application.Auth;
-using AiOralExam.SharedKernel.Errors;
 using AiOralExam.SharedKernel.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -7,24 +6,15 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace AiOralExam.Modules.AccessConfig.Controllers;
 
+/// <summary>Sign-in happens in Keycloak (realm aives); clients send its access token as a Bearer token.</summary>
 [ApiController]
 [Route("api/auth")]
 [Tags("Auth")]
 public sealed class AuthController(IAuthService auth, ICurrentUser currentUser) : ControllerBase
 {
-    /// <summary>Sign in with email + password; returns a JWT that carries the role.</summary>
-    [HttpPost("login")]
-    [AllowAnonymous]
-    [ProducesResponseType<LoginResponse>(StatusCodes.Status200OK)]
-    [ProducesResponseType<ApiError>(StatusCodes.Status401Unauthorized)]
-    public Task<LoginResponse> Login(LoginRequest request, CancellationToken ct) =>
-        auth.LoginWithPasswordAsync(request, ct);
-
     /// <summary>Profile of the signed-in account.</summary>
     [HttpGet("me")]
     [Authorize]
     public Task<UserProfileDto> Me(CancellationToken ct) =>
         auth.GetProfileAsync(currentUser.Id, ct);
-
-    // TODO (M4): POST google, POST forgot-password, POST set-password
 }

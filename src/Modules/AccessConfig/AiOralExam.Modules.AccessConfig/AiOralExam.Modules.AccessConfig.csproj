@@ -1,13 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- F7 - Access Control & Exam Configuration. Owns: users, roles, password_setup_tokens, courses,
-       course_lecturers, exam_sessions, questions, rubrics, ai_service_configs, audit_logs -->
+  <!-- F7 - Access Control & Exam Configuration. Owns: users, roles, courses,
+       course_lecturers, exam_sessions, questions, rubrics, ai_service_configs, audit_logs.
+       Sign-in is handled by Keycloak; this module only reads the token's user id + role. -->
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
     <PackageReference Include="EFCore.NamingConventions" />
-    <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\Shared\AiOralExam.SharedKernel\AiOralExam.SharedKernel.csproj" />

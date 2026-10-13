@@ -26,7 +26,6 @@ internal sealed class InterviewResultsApi(InterviewDbContext db) : IInterviewRes
         .Include(a => a.Participant)
         .Include(a => a.Review)
         .Include(a => a.Responses).ThenInclude(r => r.Turns)
-        .Include(a => a.Responses).ThenInclude(r => r.Evaluation)
         .AsSplitQuery();
 
     private static AttemptResult ToResult(InterviewAttempt a) => new(
@@ -41,7 +40,7 @@ internal sealed class InterviewResultsApi(InterviewDbContext db) : IInterviewRes
             : new ScoreReviewResult(a.Review.ReviewerId, a.Review.FinalScore, a.Review.Comment, a.Review.Status, a.Review.ReviewedAt),
         a.Responses.Select(r => new QuestionResponseResult(
                 r.Id, r.QuestionId, r.FollowUpCount, r.IsFinished,
-                r.Evaluation?.SuggestedScore, r.Evaluation?.Feedback,
+                r.AiSuggestedScore, r.AiFeedback,
                 r.Turns.OrderBy(t => t.TurnNo)
                     .Select(t => new TurnResult(t.TurnNo, t.Type, t.QuestionText, t.AnswerTranscript, t.AskedAt, t.AnsweredAt))
                     .ToList()))

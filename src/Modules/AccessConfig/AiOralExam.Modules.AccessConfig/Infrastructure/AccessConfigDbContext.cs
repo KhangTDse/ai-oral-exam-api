@@ -13,7 +13,6 @@ public sealed class AccessConfigDbContext(DbContextOptions<AccessConfigDbContext
 {
     public DbSet<User> Users => Set<User>();
     public DbSet<Role> Roles => Set<Role>();
-    public DbSet<PasswordSetupToken> PasswordSetupTokens => Set<PasswordSetupToken>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<AiServiceConfig> AiServiceConfigs => Set<AiServiceConfig>();
     public DbSet<Course> Courses => Set<Course>();
@@ -21,12 +20,11 @@ public sealed class AccessConfigDbContext(DbContextOptions<AccessConfigDbContext
     public DbSet<ExamSession> ExamSessions => Set<ExamSession>();
     public DbSet<Question> Questions => Set<Question>();
     public DbSet<Rubric> Rubrics => Set<Rubric>();
+    public DbSet<RubricCriterion> RubricCriteria => Set<RubricCriterion>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder builder)
     {
         // Enums are stored as VARCHAR (matching the CHECK constraints)
-        builder.Properties<AuthProvider>().HaveConversion<string>();
-        builder.Properties<TokenPurpose>().HaveConversion<string>();
         builder.Properties<AiServiceType>().HaveConversion<string>();
         builder.Properties<SpeechLanguage>().HaveConversion<string>();
         builder.Properties<ExamSessionStatus>().HaveConversion<string>();
@@ -38,7 +36,6 @@ public sealed class AccessConfigDbContext(DbContextOptions<AccessConfigDbContext
         {
             e.ToTable("roles");
             e.HasKey(x => x.Id);
-            e.Property(x => x.Id).ValueGeneratedNever();
         });
 
         b.Entity<User>(e =>
@@ -47,13 +44,6 @@ public sealed class AccessConfigDbContext(DbContextOptions<AccessConfigDbContext
             e.HasKey(x => x.Id);
             e.HasIndex(x => x.Email).IsUnique();
             e.HasOne(x => x.Role).WithMany().HasForeignKey(x => x.RoleId);
-        });
-
-        b.Entity<PasswordSetupToken>(e =>
-        {
-            e.ToTable("password_setup_tokens");
-            e.HasKey(x => x.Id);
-            e.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId);
         });
 
         b.Entity<AuditLog>(e =>
@@ -103,6 +93,14 @@ public sealed class AccessConfigDbContext(DbContextOptions<AccessConfigDbContext
             e.ToTable("rubrics");
             e.HasKey(x => x.Id);
             e.Property(x => x.MaxScore).HasPrecision(5, 2);
+            e.HasMany(x => x.Criteria).WithOne().HasForeignKey(c => c.RubricId);
+        });
+
+        b.Entity<RubricCriterion>(e =>
+        {
+            e.ToTable("rubric_criteria");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.MaxPoints).HasPrecision(5, 2);
         });
 
         // Guid ids are generated in code (Guid.NewGuid). ValueGeneratedNever makes EF always INSERT new

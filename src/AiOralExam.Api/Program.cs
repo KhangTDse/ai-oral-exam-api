@@ -1,7 +1,8 @@
-using System.Text;
+using System.Security.Claims;
 using System.Text.Json.Serialization;
 using AiOralExam.Api.Infrastructure;
 using AiOralExam.Modules.AccessConfig;
+using AiOralExam.Modules.AccessConfig.Contracts;
 using AiOralExam.Modules.AccessConfig.Infrastructure;
 using AiOralExam.Modules.Interview;
 using AiOralExam.Modules.Reporting;
@@ -31,22 +32,22 @@ builder.Services
     .AddInterviewModule(connectionString, config)
     .AddReportingModule();
 
-// ---------------------------------------------------------------- Auth (JWT)
-builder.Services.Configure<JwtOptions>(config.GetSection(JwtOptions.SectionName));
-var jwt = config.GetSection(JwtOptions.SectionName).Get<JwtOptions>() ?? new JwtOptions();
-if (string.IsNullOrWhiteSpace(jwt.SigningKey) || jwt.SigningKey.Length < 32)
-    throw new InvalidOperationException("Jwt:SigningKey must be at least 32 characters long.");
+// ---------------------------------------------------------------- Auth (Keycloak access tokens)
+// Keycloak signs the tokens; the signing keys are read from {Authority}/.well-known/openid-configuration.
+var keycloakAuthority = config["Keycloak:Authority"]
+    ?? throw new InvalidOperationException("Missing Keycloak:Authority in appsettings.");
+const string AccountInactive = "account_inactive";
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(o =>
     {
+        o.Authority = keycloakAuthority;
+        o.Audience = config["Keycloak:Audience"];
+        o.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
         o.MapInboundClaims = false; // keep the short claim names: sub, role, email
         o.TokenValidationParameters = new TokenValidationParameters
         {
-            ValidIssuer = jwt.Issuer,
-            ValidAudience = jwt.Audience,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.SigningKey)),
             NameClaimType = AppClaims.Name,
             RoleClaimType = AppClaims.Role,
             ClockSkew = TimeSpan.FromMinutes(1),
@@ -54,9 +55,36 @@ builder.Services
         // 401/403 also use the ApiError format
         o.Events = new JwtBearerEvents
         {
+            // The database decides access: users.is_active must be true, and users.role_id replaces the
+            // token's role, so a change made in AIVES applies at once even if Keycloak lags behind.
+            // ponytail: one DB lookup per request; add a short MemoryCache if it shows up in profiling.
+            OnTokenValidated = async ctx =>
+            {
+                var access = Guid.TryParse(ctx.Principal?.FindFirst(AppClaims.UserId)?.Value, out var userId)
+                    ? await ctx.HttpContext.RequestServices.GetRequiredService<IExamConfigurationApi>()
+                        .GetUserAccessAsync(userId, ctx.HttpContext.RequestAborted)
+                    : null;
+                if (access is not { IsActive: true })
+                {
+                    ctx.Fail(AccountInactive);
+                    return;
+                }
+
+                var identity = (ClaimsIdentity)ctx.Principal!.Identity!;
+                foreach (var claim in identity.FindAll(AppClaims.Role).ToList())
+                    identity.RemoveClaim(claim);
+                identity.AddClaim(new Claim(AppClaims.Role, access.Role));
+            },
             OnChallenge = async ctx =>
             {
                 ctx.HandleResponse();
+                if (ctx.AuthenticateFailure?.Message == AccountInactive)
+                {
+                    ctx.Response.StatusCode = StatusCodes.Status403Forbidden;
+                    await ctx.Response.WriteAsJsonAsync(new ApiError(AccountInactive,
+                        "Your account is not active in AIVES. Contact an administrator.", ctx.HttpContext.TraceIdentifier));
+                    return;
+                }
                 ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;
                 await ctx.Response.WriteAsJsonAsync(new ApiError("unauthenticated", "You need to sign in.", ctx.HttpContext.TraceIdentifier));
             },
@@ -104,17 +132,23 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(o =>
 {
     o.SwaggerDoc("v1", new OpenApiInfo { Title = "AIVES API", Version = "v1", Description = "AI-powered Viva Exam System" });
-    o.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    // "Authorize" signs in through Keycloak (Authorization Code + PKCE, client aives-swagger)
+    o.AddSecurityDefinition("Keycloak", new OpenApiSecurityScheme
     {
-        Type = SecuritySchemeType.Http,
-        Scheme = "bearer",
-        BearerFormat = "JWT",
-        In = ParameterLocation.Header,
-        Description = "Paste the accessToken from POST /api/auth/login (without the 'Bearer ' prefix).",
+        Type = SecuritySchemeType.OAuth2,
+        Flows = new OpenApiOAuthFlows
+        {
+            AuthorizationCode = new OpenApiOAuthFlow
+            {
+                AuthorizationUrl = new Uri($"{keycloakAuthority}/protocol/openid-connect/auth"),
+                TokenUrl = new Uri($"{keycloakAuthority}/protocol/openid-connect/token"),
+                Scopes = new Dictionary<string, string> { ["openid"] = "OpenID Connect" },
+            },
+        },
     });
     o.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
-        [new OpenApiSecurityScheme { Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" } }] = []
+        [new OpenApiSecurityScheme { Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Keycloak" } }] = ["openid"]
     });
     foreach (var xml in Directory.GetFiles(AppContext.BaseDirectory, "AiOralExam*.xml"))
         o.IncludeXmlComments(xml);
@@ -132,7 +166,12 @@ app.UseMiddleware<ExceptionHandlingMiddleware>();
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI(o => o.DocumentTitle = "AIVES API");
+    app.UseSwaggerUI(o =>
+    {
+        o.DocumentTitle = "AIVES API";
+        o.OAuthClientId(config["Keycloak:SwaggerClientId"]);
+        o.OAuthUsePkce();
+    });
 }
 
 app.UseCors();

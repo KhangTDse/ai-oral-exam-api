@@ -1,10 +1,17 @@
 namespace AiOralExam.Modules.AccessConfig.Contracts;
 
+public sealed record RubricCriterionInfo(
+    Guid Id,
+    int OrderNo,
+    string Description,
+    decimal MaxPoints);
+
+/// <summary>Criteria is empty while the question has no rubric yet (draft session).</summary>
 public sealed record QuestionInfo(
     Guid Id,
     int OrderNo,
     string Content,
-    string RubricCriteria,
+    IReadOnlyList<RubricCriterionInfo> Criteria,
     decimal MaxScore);
 
 public sealed record ExamSessionInfo(
@@ -15,7 +22,7 @@ public sealed record ExamSessionInfo(
     string Title,
     DateTime StartTime,
     DateTime EndTime,
-    int TimeLimitPerQuestion, // seconds
+    int TimeLimitPerAnswerSeconds,
     int MaxFollowUps,
     ExamSessionStatus Status,
     IReadOnlyList<QuestionInfo> Questions)
@@ -25,6 +32,8 @@ public sealed record ExamSessionInfo(
 
     public decimal TotalMaxScore => Questions.Sum(q => q.MaxScore);
 }
+
+public sealed record UserAccessInfo(string Role, bool IsActive);
 
 public sealed record UserBasicInfo(
     Guid Id,
