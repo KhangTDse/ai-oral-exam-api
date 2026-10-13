@@ -4,21 +4,21 @@
 -- Run after 01_schema.sql. Fixed UUIDs make rows easy to look up when testing the API.
 -- This file is generated (deterministic) - hand edits are fine, just keep the UUIDs stable.
 --
--- SIGN-IN: email or account_name + password. SHARED PASSWORD: Password@123
---   admin@aives.edu.vn        (admin)      Administrator
---   tuan.dm@aives.edu.vn      (tuan.dm)    Administrator
---   an.nv@aives.edu.vn        (l001)       Lecturer  SWD392 - password AND Google linked
---   mai.bt@aives.edu.vn       (l005)       Lecturer  SWD392 + DBI202
---   ha.dt@aives.edu.vn        (l003)       Lecturer  DBI202
---   long.nd@aives.edu.vn      (l004)       Lecturer  SWT301
---   nam.lq@aives.edu.vn       (l006)       Lecturer  PRN232
---   binh.tt@aives.edu.vn      (l002)       Lecturer  PRN232 - Google only, no password
---   chau.lm@aives.edu.vn      (se180001)   Student   S1: finished, score confirmed (Approved)
---   dung.pq@aives.edu.vn      (se180002)   Student   S1: finished, review Pending
---   han.hg@aives.edu.vn       (se180003)   Student   NOT TAKEN YET - demo: S1 + S4 open, S6 not open yet
---   khoa.vt@aives.edu.vn      (no account name) Student - not activated (AccountSetup link: demo-setup-token-khoa)
---   new.student@aives.edu.vn  (newstudent) self-registered, email NOT verified (EmailVerification link: demo-verify-token-new)
---   Other students: account_name = student code in lower case (se180005..se180040), same password.
+-- SIGN-IN is handled by Keycloak (realm aives, see keycloak/README.md); the app stores no credentials.
+-- users.id equals the Keycloak user id (token sub). SHARED PASSWORD in Keycloak: Password@123
+--   admin@aives.edu.vn        Administrator
+--   tuan.dm@aives.edu.vn      Administrator
+--   an.nv@aives.edu.vn        Lecturer  SWD392
+--   mai.bt@aives.edu.vn       Lecturer  SWD392 + DBI202
+--   ha.dt@aives.edu.vn        Lecturer  DBI202
+--   long.nd@aives.edu.vn      Lecturer  SWT301
+--   nam.lq@aives.edu.vn       Lecturer  PRN232
+--   binh.tt@aives.edu.vn      Lecturer  PRN232
+--   chau.lm@aives.edu.vn      Student   S1: finished, score confirmed (Approved)
+--   dung.pq@aives.edu.vn      Student   S1: finished, review Pending
+--   han.hg@aives.edu.vn       Student   NOT TAKEN YET - demo: S1 + S4 open, S6 not open yet
+--   khoa.vt@aives.edu.vn      Student   must change the temporary password at first sign-in
+--   Other students: same password.
 --
 -- EXAM SESSIONS (exam_sessions)
 --   S1 33333333-...0001  SWD392  Published, OPEN (until now() + 30 days)   3 questions
@@ -30,8 +30,6 @@
 --
 -- Derived columns rubrics.max_score and question_responses.ai_suggested_score are filled by
 -- the triggers in 01_schema.sql from rubric_criteria / criterion_scores.
--- password_hash uses the ASP.NET Identity V3 format (PBKDF2-HMAC-SHA512, 100000 iterations,
--- salt inside the hash) => works directly with PasswordHasher<TUser>; password_salt stays NULL.
 -- =====================================================================
 
 BEGIN;
@@ -43,121 +41,57 @@ INSERT INTO roles (id, name, description) VALUES
   ('eeeeeeee-0000-0000-0000-000000000003', 'Administrator', 'Manages accounts, course assignments, AI settings and the audit log.');
 
 -- ---------- Users (the person) ----------
--- 1..7: original accounts; 8: second admin; 9..12: lecturers; 13: self-registered; 101..136: students
+-- 1..7: original accounts; 8: second admin; 9..12: lecturers; 101..136: students
 -- SE180025 (Huỳnh Gia Duy) is locked (is_active = false) to test a failed sign-in.
-INSERT INTO users (id, role_id, full_name, username, student_code, lecturer_code, class_code, is_active, created_at) VALUES
-  ('11111111-0000-0000-0000-000000000001', 'eeeeeeee-0000-0000-0000-000000000003', 'System Administrator', 'admin', NULL, NULL, NULL, TRUE, '2026-09-25 07:50+07'),
-  ('11111111-0000-0000-0000-000000000002', 'eeeeeeee-0000-0000-0000-000000000002', 'Nguyễn Văn An', 'an.nv', NULL, 'L001', NULL, TRUE, '2026-09-25 07:50+07'),
-  ('11111111-0000-0000-0000-000000000003', 'eeeeeeee-0000-0000-0000-000000000002', 'Trần Thị Bình', 'binh.tt', NULL, 'L002', NULL, TRUE, '2026-09-25 07:50+07'),
-  ('11111111-0000-0000-0000-000000000004', 'eeeeeeee-0000-0000-0000-000000000001', 'Lê Minh Châu', 'chau.lm', 'SE180001', NULL, 'SE1801', TRUE, '2026-09-25 07:50+07'),
-  ('11111111-0000-0000-0000-000000000005', 'eeeeeeee-0000-0000-0000-000000000001', 'Phạm Quốc Dũng', 'dung.pq', 'SE180002', NULL, 'SE1801', TRUE, '2026-09-25 07:50+07'),
-  ('11111111-0000-0000-0000-000000000006', 'eeeeeeee-0000-0000-0000-000000000001', 'Hoàng Gia Hân', 'han.hg', 'SE180003', NULL, 'SE1801', TRUE, '2026-09-25 07:50+07'),
-  ('11111111-0000-0000-0000-000000000007', 'eeeeeeee-0000-0000-0000-000000000001', 'Võ Thanh Khoa', 'khoa.vt', 'SE180004', NULL, 'SE1801', TRUE, '2026-09-25 07:50+07'),
-  ('11111111-0000-0000-0000-000000000008', 'eeeeeeee-0000-0000-0000-000000000003', 'Đỗ Minh Tuấn', 'tuan.dm', NULL, NULL, NULL, TRUE, '2026-09-25 07:50+07'),
-  ('11111111-0000-0000-0000-000000000009', 'eeeeeeee-0000-0000-0000-000000000002', 'Đặng Thu Hà', 'ha.dt', NULL, 'L003', NULL, TRUE, '2026-09-25 07:50+07'),
-  ('11111111-0000-0000-0000-000000000010', 'eeeeeeee-0000-0000-0000-000000000002', 'Ngô Đức Long', 'long.nd', NULL, 'L004', NULL, TRUE, '2026-09-25 07:50+07'),
-  ('11111111-0000-0000-0000-000000000011', 'eeeeeeee-0000-0000-0000-000000000002', 'Bùi Thị Mai', 'mai.bt', NULL, 'L005', NULL, TRUE, '2026-09-25 07:50+07'),
-  ('11111111-0000-0000-0000-000000000012', 'eeeeeeee-0000-0000-0000-000000000002', 'Lý Quang Nam', 'nam.lq', NULL, 'L006', NULL, TRUE, '2026-09-25 07:50+07'),
-  ('11111111-0000-0000-0000-000000000013', 'eeeeeeee-0000-0000-0000-000000000001', NULL, NULL, NULL, NULL, NULL, TRUE, now() - interval '1 hour'),
-  ('11111111-0000-0000-0000-000000000101', 'eeeeeeee-0000-0000-0000-000000000001', 'Dương Phương Hoa', 'hoa.dp', 'SE180005', NULL, 'SE1801', TRUE, '2026-09-25 07:50+07'),
-  ('11111111-0000-0000-0000-000000000102', 'eeeeeeee-0000-0000-0000-000000000001', 'Phan Phương My', 'my.pp', 'SE180006', NULL, 'SE1801', TRUE, '2026-09-25 07:50+07'),
-  ('11111111-0000-0000-0000-000000000103', 'eeeeeeee-0000-0000-0000-000000000001', 'Phan Thanh Tâm', 'tam.pt', 'SE180007', NULL, 'SE1801', TRUE, '2026-09-25 07:50+07'),
-  ('11111111-0000-0000-0000-000000000104', 'eeeeeeee-0000-0000-0000-000000000001', 'Phan Ngọc Uyên', 'uyen.pn', 'SE180008', NULL, 'SE1801', TRUE, '2026-09-25 07:50+07'),
-  ('11111111-0000-0000-0000-000000000105', 'eeeeeeee-0000-0000-0000-000000000001', 'Đặng Gia Vinh', 'vinh.dg', 'SE180009', NULL, 'SE1801', TRUE, '2026-09-25 07:50+07'),
-  ('11111111-0000-0000-0000-000000000106', 'eeeeeeee-0000-0000-0000-000000000001', 'Đặng Bảo Hiếu', 'hieu.db', 'SE180010', NULL, 'SE1801', TRUE, '2026-09-25 07:50+07'),
-  ('11111111-0000-0000-0000-000000000107', 'eeeeeeee-0000-0000-0000-000000000001', 'Hoàng Văn Lộc', 'loc.hv', 'SE180011', NULL, 'SE1801', TRUE, '2026-09-25 07:50+07'),
-  ('11111111-0000-0000-0000-000000000108', 'eeeeeeee-0000-0000-0000-000000000001', 'Lê Quốc Sơn', 'son.lq', 'SE180012', NULL, 'SE1801', TRUE, '2026-09-25 07:50+07'),
-  ('11111111-0000-0000-0000-000000000109', 'eeeeeeee-0000-0000-0000-000000000001', 'Dương Minh Tú', 'tu.dm', 'SE180013', NULL, 'SE1802', TRUE, '2026-09-25 07:50+07'),
-  ('11111111-0000-0000-0000-000000000110', 'eeeeeeee-0000-0000-0000-000000000001', 'Bùi Hoàng Tiến', 'tien.bh', 'SE180014', NULL, 'SE1802', TRUE, '2026-09-25 07:50+07'),
-  ('11111111-0000-0000-0000-000000000111', 'eeeeeeee-0000-0000-0000-000000000001', 'Bùi Bảo Hải', 'hai.bb', 'SE180015', NULL, 'SE1802', TRUE, '2026-09-25 07:50+07'),
-  ('11111111-0000-0000-0000-000000000112', 'eeeeeeee-0000-0000-0000-000000000001', 'Phạm Thị Linh', 'linh.pt', 'SE180016', NULL, 'SE1802', TRUE, '2026-09-25 07:50+07'),
-  ('11111111-0000-0000-0000-000000000113', 'eeeeeeee-0000-0000-0000-000000000001', 'Phạm Thị Quỳnh', 'quynh.pt', 'SE180017', NULL, 'SE1802', TRUE, '2026-09-25 07:50+07'),
-  ('11111111-0000-0000-0000-000000000114', 'eeeeeeee-0000-0000-0000-000000000001', 'Hoàng Quốc Trung', 'trung.hq', 'SE180018', NULL, 'SE1802', TRUE, '2026-09-25 07:50+07'),
-  ('11111111-0000-0000-0000-000000000115', 'eeeeeeee-0000-0000-0000-000000000001', 'Hồ Gia Nhật', 'nhat.hg', 'SE180019', NULL, 'SE1802', TRUE, '2026-09-25 07:50+07'),
-  ('11111111-0000-0000-0000-000000000116', 'eeeeeeee-0000-0000-0000-000000000001', 'Phan Khánh Giang', 'giang.pk', 'SE180020', NULL, 'SE1802', TRUE, '2026-09-25 07:50+07'),
-  ('11111111-0000-0000-0000-000000000117', 'eeeeeeee-0000-0000-0000-000000000001', 'Trần Khánh Lan', 'lan.tk', 'SE180021', NULL, 'SE1802', TRUE, '2026-09-25 07:50+07'),
-  ('11111111-0000-0000-0000-000000000118', 'eeeeeeee-0000-0000-0000-000000000001', 'Võ Minh Quân', 'quan.vm', 'SE180022', NULL, 'SE1802', TRUE, '2026-09-25 07:50+07'),
-  ('11111111-0000-0000-0000-000000000119', 'eeeeeeee-0000-0000-0000-000000000001', 'Phạm Thanh Trí', 'tri.pt', 'SE180023', NULL, 'SE1802', TRUE, '2026-09-25 07:50+07'),
-  ('11111111-0000-0000-0000-000000000120', 'eeeeeeee-0000-0000-0000-000000000001', 'Đỗ Văn Khôi', 'khoi.dv', 'SE180024', NULL, 'SE1802', TRUE, '2026-09-25 07:50+07'),
-  ('11111111-0000-0000-0000-000000000121', 'eeeeeeee-0000-0000-0000-000000000001', 'Huỳnh Gia Duy', 'duy.hg', 'SE180025', NULL, 'SE1802', FALSE, '2026-09-25 07:50+07'),
-  ('11111111-0000-0000-0000-000000000122', 'eeeeeeee-0000-0000-0000-000000000001', 'Phạm Hoàng Khang', 'khang.ph', 'SE180026', NULL, 'SE1803', TRUE, '2026-09-25 07:50+07'),
-  ('11111111-0000-0000-0000-000000000123', 'eeeeeeee-0000-0000-0000-000000000001', 'Ngô Thu Phương', 'phuong.nt', 'SE180027', NULL, 'SE1803', TRUE, '2026-09-25 07:50+07'),
-  ('11111111-0000-0000-0000-000000000124', 'eeeeeeee-0000-0000-0000-000000000001', 'Lý Thị Trang', 'trang.lt', 'SE180028', NULL, 'SE1803', TRUE, '2026-09-25 07:50+07'),
-  ('11111111-0000-0000-0000-000000000125', 'eeeeeeee-0000-0000-0000-000000000001', 'Trần Minh Đạt', 'dat.tm', 'SE180029', NULL, 'SE1803', TRUE, '2026-09-25 07:50+07'),
-  ('11111111-0000-0000-0000-000000000126', 'eeeeeeee-0000-0000-0000-000000000001', 'Đỗ Anh Cường', 'cuong.da', 'SE180030', NULL, 'SE1803', TRUE, '2026-09-25 07:50+07'),
-  ('11111111-0000-0000-0000-000000000127', 'eeeeeeee-0000-0000-0000-000000000001', 'Hoàng Khánh Hương', 'huong.hk', 'SE180031', NULL, 'SE1803', TRUE, '2026-09-25 07:50+07'),
-  ('11111111-0000-0000-0000-000000000128', 'eeeeeeee-0000-0000-0000-000000000001', 'Trần Đức Phúc', 'phuc.td', 'SE180032', NULL, 'SE1803', TRUE, '2026-09-25 07:50+07'),
-  ('11111111-0000-0000-0000-000000000129', 'eeeeeeee-0000-0000-0000-000000000001', 'Phan Đức Thắng', 'thang.pd', 'SE180033', NULL, 'SE1804', TRUE, '2026-09-25 07:50+07'),
-  ('11111111-0000-0000-0000-000000000130', 'eeeeeeee-0000-0000-0000-000000000001', 'Đỗ Minh Yến', 'yen.dm', 'SE180034', NULL, 'SE1804', TRUE, '2026-09-25 07:50+07'),
-  ('11111111-0000-0000-0000-000000000131', 'eeeeeeee-0000-0000-0000-000000000001', 'Phạm Hữu Bảo', 'bao.ph', 'SE180035', NULL, 'SE1804', TRUE, '2026-09-25 07:50+07'),
-  ('11111111-0000-0000-0000-000000000132', 'eeeeeeee-0000-0000-0000-000000000001', 'Hồ Văn Huy', 'huy.hv', 'SE180036', NULL, 'SE1804', TRUE, '2026-09-25 07:50+07'),
-  ('11111111-0000-0000-0000-000000000133', 'eeeeeeee-0000-0000-0000-000000000001', 'Hồ Bảo Nhi', 'nhi.hb', 'SE180037', NULL, 'SE1804', TRUE, '2026-09-25 07:50+07'),
-  ('11111111-0000-0000-0000-000000000134', 'eeeeeeee-0000-0000-0000-000000000001', 'Phan Phương Thảo', 'thao.pp', 'SE180038', NULL, 'SE1804', TRUE, '2026-09-25 07:50+07'),
-  ('11111111-0000-0000-0000-000000000135', 'eeeeeeee-0000-0000-0000-000000000001', 'Hoàng Thanh Vy', 'vy.ht', 'SE180039', NULL, 'SE1804', TRUE, '2026-09-25 07:50+07'),
-  ('11111111-0000-0000-0000-000000000136', 'eeeeeeee-0000-0000-0000-000000000001', 'Vũ Quốc Anh', 'anh.vq', 'SE180040', NULL, 'SE1804', TRUE, '2026-09-25 07:50+07');
-
--- ---------- User accounts (how each user signs in; exactly one per user) ----------
-INSERT INTO user_accounts (id, user_id, account_name, email, email_verified, password_hash, password_salt, google_linked) VALUES
-  ('aaaaaaaa-0000-0000-0000-000000000001', '11111111-0000-0000-0000-000000000001', 'admin', 'admin@aives.edu.vn', TRUE, 'AQAAAAIAAYagAAAAEH0qZ8ti6XJn97UDV55izQte1KafEVBpk1c/Z6QhKRc/gsEFK1ehRpAf3htW+VyXMg==', NULL, FALSE),
-  ('aaaaaaaa-0000-0000-0000-000000000002', '11111111-0000-0000-0000-000000000002', 'l001', 'an.nv@aives.edu.vn', TRUE, 'AQAAAAIAAYagAAAAEH0qZ8ti6XJn97UDV55izQte1KafEVBpk1c/Z6QhKRc/gsEFK1ehRpAf3htW+VyXMg==', NULL, TRUE),
-  ('aaaaaaaa-0000-0000-0000-000000000003', '11111111-0000-0000-0000-000000000003', 'l002', 'binh.tt@aives.edu.vn', TRUE, NULL, NULL, TRUE),
-  ('aaaaaaaa-0000-0000-0000-000000000004', '11111111-0000-0000-0000-000000000004', 'se180001', 'chau.lm@aives.edu.vn', TRUE, 'AQAAAAIAAYagAAAAEH0qZ8ti6XJn97UDV55izQte1KafEVBpk1c/Z6QhKRc/gsEFK1ehRpAf3htW+VyXMg==', NULL, FALSE),
-  ('aaaaaaaa-0000-0000-0000-000000000005', '11111111-0000-0000-0000-000000000005', 'se180002', 'dung.pq@aives.edu.vn', TRUE, 'AQAAAAIAAYagAAAAEH0qZ8ti6XJn97UDV55izQte1KafEVBpk1c/Z6QhKRc/gsEFK1ehRpAf3htW+VyXMg==', NULL, FALSE),
-  ('aaaaaaaa-0000-0000-0000-000000000006', '11111111-0000-0000-0000-000000000006', 'se180003', 'han.hg@aives.edu.vn', TRUE, 'AQAAAAIAAYagAAAAEH0qZ8ti6XJn97UDV55izQte1KafEVBpk1c/Z6QhKRc/gsEFK1ehRpAf3htW+VyXMg==', NULL, FALSE),
-  ('aaaaaaaa-0000-0000-0000-000000000007', '11111111-0000-0000-0000-000000000007', NULL, 'khoa.vt@aives.edu.vn', FALSE, NULL, NULL, FALSE),
-  ('aaaaaaaa-0000-0000-0000-000000000008', '11111111-0000-0000-0000-000000000008', 'tuan.dm', 'tuan.dm@aives.edu.vn', TRUE, 'AQAAAAIAAYagAAAAEH0qZ8ti6XJn97UDV55izQte1KafEVBpk1c/Z6QhKRc/gsEFK1ehRpAf3htW+VyXMg==', NULL, FALSE),
-  ('aaaaaaaa-0000-0000-0000-000000000009', '11111111-0000-0000-0000-000000000009', 'l003', 'ha.dt@aives.edu.vn', TRUE, 'AQAAAAIAAYagAAAAEH0qZ8ti6XJn97UDV55izQte1KafEVBpk1c/Z6QhKRc/gsEFK1ehRpAf3htW+VyXMg==', NULL, FALSE),
-  ('aaaaaaaa-0000-0000-0000-000000000010', '11111111-0000-0000-0000-000000000010', 'l004', 'long.nd@aives.edu.vn', TRUE, 'AQAAAAIAAYagAAAAEH0qZ8ti6XJn97UDV55izQte1KafEVBpk1c/Z6QhKRc/gsEFK1ehRpAf3htW+VyXMg==', NULL, FALSE),
-  ('aaaaaaaa-0000-0000-0000-000000000011', '11111111-0000-0000-0000-000000000011', 'l005', 'mai.bt@aives.edu.vn', TRUE, 'AQAAAAIAAYagAAAAEH0qZ8ti6XJn97UDV55izQte1KafEVBpk1c/Z6QhKRc/gsEFK1ehRpAf3htW+VyXMg==', NULL, FALSE),
-  ('aaaaaaaa-0000-0000-0000-000000000012', '11111111-0000-0000-0000-000000000012', 'l006', 'nam.lq@aives.edu.vn', TRUE, 'AQAAAAIAAYagAAAAEH0qZ8ti6XJn97UDV55izQte1KafEVBpk1c/Z6QhKRc/gsEFK1ehRpAf3htW+VyXMg==', NULL, FALSE),
-  ('aaaaaaaa-0000-0000-0000-000000000013', '11111111-0000-0000-0000-000000000013', 'newstudent', 'new.student@aives.edu.vn', FALSE, 'AQAAAAIAAYagAAAAEH0qZ8ti6XJn97UDV55izQte1KafEVBpk1c/Z6QhKRc/gsEFK1ehRpAf3htW+VyXMg==', NULL, FALSE),
-  ('aaaaaaaa-0000-0000-0000-000000000101', '11111111-0000-0000-0000-000000000101', 'se180005', 'hoa.dp@aives.edu.vn', TRUE, 'AQAAAAIAAYagAAAAEH0qZ8ti6XJn97UDV55izQte1KafEVBpk1c/Z6QhKRc/gsEFK1ehRpAf3htW+VyXMg==', NULL, FALSE),
-  ('aaaaaaaa-0000-0000-0000-000000000102', '11111111-0000-0000-0000-000000000102', 'se180006', 'my.pp@aives.edu.vn', TRUE, 'AQAAAAIAAYagAAAAEH0qZ8ti6XJn97UDV55izQte1KafEVBpk1c/Z6QhKRc/gsEFK1ehRpAf3htW+VyXMg==', NULL, FALSE),
-  ('aaaaaaaa-0000-0000-0000-000000000103', '11111111-0000-0000-0000-000000000103', 'se180007', 'tam.pt@aives.edu.vn', TRUE, 'AQAAAAIAAYagAAAAEH0qZ8ti6XJn97UDV55izQte1KafEVBpk1c/Z6QhKRc/gsEFK1ehRpAf3htW+VyXMg==', NULL, FALSE),
-  ('aaaaaaaa-0000-0000-0000-000000000104', '11111111-0000-0000-0000-000000000104', 'se180008', 'uyen.pn@aives.edu.vn', TRUE, 'AQAAAAIAAYagAAAAEH0qZ8ti6XJn97UDV55izQte1KafEVBpk1c/Z6QhKRc/gsEFK1ehRpAf3htW+VyXMg==', NULL, FALSE),
-  ('aaaaaaaa-0000-0000-0000-000000000105', '11111111-0000-0000-0000-000000000105', 'se180009', 'vinh.dg@aives.edu.vn', TRUE, 'AQAAAAIAAYagAAAAEH0qZ8ti6XJn97UDV55izQte1KafEVBpk1c/Z6QhKRc/gsEFK1ehRpAf3htW+VyXMg==', NULL, FALSE),
-  ('aaaaaaaa-0000-0000-0000-000000000106', '11111111-0000-0000-0000-000000000106', 'se180010', 'hieu.db@aives.edu.vn', TRUE, 'AQAAAAIAAYagAAAAEH0qZ8ti6XJn97UDV55izQte1KafEVBpk1c/Z6QhKRc/gsEFK1ehRpAf3htW+VyXMg==', NULL, FALSE),
-  ('aaaaaaaa-0000-0000-0000-000000000107', '11111111-0000-0000-0000-000000000107', 'se180011', 'loc.hv@aives.edu.vn', TRUE, 'AQAAAAIAAYagAAAAEH0qZ8ti6XJn97UDV55izQte1KafEVBpk1c/Z6QhKRc/gsEFK1ehRpAf3htW+VyXMg==', NULL, FALSE),
-  ('aaaaaaaa-0000-0000-0000-000000000108', '11111111-0000-0000-0000-000000000108', 'se180012', 'son.lq@aives.edu.vn', TRUE, 'AQAAAAIAAYagAAAAEH0qZ8ti6XJn97UDV55izQte1KafEVBpk1c/Z6QhKRc/gsEFK1ehRpAf3htW+VyXMg==', NULL, FALSE),
-  ('aaaaaaaa-0000-0000-0000-000000000109', '11111111-0000-0000-0000-000000000109', 'se180013', 'tu.dm@aives.edu.vn', TRUE, 'AQAAAAIAAYagAAAAEH0qZ8ti6XJn97UDV55izQte1KafEVBpk1c/Z6QhKRc/gsEFK1ehRpAf3htW+VyXMg==', NULL, FALSE),
-  ('aaaaaaaa-0000-0000-0000-000000000110', '11111111-0000-0000-0000-000000000110', 'se180014', 'tien.bh@aives.edu.vn', TRUE, 'AQAAAAIAAYagAAAAEH0qZ8ti6XJn97UDV55izQte1KafEVBpk1c/Z6QhKRc/gsEFK1ehRpAf3htW+VyXMg==', NULL, FALSE),
-  ('aaaaaaaa-0000-0000-0000-000000000111', '11111111-0000-0000-0000-000000000111', 'se180015', 'hai.bb@aives.edu.vn', TRUE, 'AQAAAAIAAYagAAAAEH0qZ8ti6XJn97UDV55izQte1KafEVBpk1c/Z6QhKRc/gsEFK1ehRpAf3htW+VyXMg==', NULL, FALSE),
-  ('aaaaaaaa-0000-0000-0000-000000000112', '11111111-0000-0000-0000-000000000112', 'se180016', 'linh.pt@aives.edu.vn', TRUE, 'AQAAAAIAAYagAAAAEH0qZ8ti6XJn97UDV55izQte1KafEVBpk1c/Z6QhKRc/gsEFK1ehRpAf3htW+VyXMg==', NULL, FALSE),
-  ('aaaaaaaa-0000-0000-0000-000000000113', '11111111-0000-0000-0000-000000000113', 'se180017', 'quynh.pt@aives.edu.vn', TRUE, 'AQAAAAIAAYagAAAAEH0qZ8ti6XJn97UDV55izQte1KafEVBpk1c/Z6QhKRc/gsEFK1ehRpAf3htW+VyXMg==', NULL, FALSE),
-  ('aaaaaaaa-0000-0000-0000-000000000114', '11111111-0000-0000-0000-000000000114', 'se180018', 'trung.hq@aives.edu.vn', TRUE, 'AQAAAAIAAYagAAAAEH0qZ8ti6XJn97UDV55izQte1KafEVBpk1c/Z6QhKRc/gsEFK1ehRpAf3htW+VyXMg==', NULL, FALSE),
-  ('aaaaaaaa-0000-0000-0000-000000000115', '11111111-0000-0000-0000-000000000115', 'se180019', 'nhat.hg@aives.edu.vn', TRUE, 'AQAAAAIAAYagAAAAEH0qZ8ti6XJn97UDV55izQte1KafEVBpk1c/Z6QhKRc/gsEFK1ehRpAf3htW+VyXMg==', NULL, FALSE),
-  ('aaaaaaaa-0000-0000-0000-000000000116', '11111111-0000-0000-0000-000000000116', 'se180020', 'giang.pk@aives.edu.vn', TRUE, 'AQAAAAIAAYagAAAAEH0qZ8ti6XJn97UDV55izQte1KafEVBpk1c/Z6QhKRc/gsEFK1ehRpAf3htW+VyXMg==', NULL, FALSE),
-  ('aaaaaaaa-0000-0000-0000-000000000117', '11111111-0000-0000-0000-000000000117', 'se180021', 'lan.tk@aives.edu.vn', TRUE, 'AQAAAAIAAYagAAAAEH0qZ8ti6XJn97UDV55izQte1KafEVBpk1c/Z6QhKRc/gsEFK1ehRpAf3htW+VyXMg==', NULL, FALSE),
-  ('aaaaaaaa-0000-0000-0000-000000000118', '11111111-0000-0000-0000-000000000118', 'se180022', 'quan.vm@aives.edu.vn', TRUE, 'AQAAAAIAAYagAAAAEH0qZ8ti6XJn97UDV55izQte1KafEVBpk1c/Z6QhKRc/gsEFK1ehRpAf3htW+VyXMg==', NULL, FALSE),
-  ('aaaaaaaa-0000-0000-0000-000000000119', '11111111-0000-0000-0000-000000000119', 'se180023', 'tri.pt@aives.edu.vn', TRUE, 'AQAAAAIAAYagAAAAEH0qZ8ti6XJn97UDV55izQte1KafEVBpk1c/Z6QhKRc/gsEFK1ehRpAf3htW+VyXMg==', NULL, FALSE),
-  ('aaaaaaaa-0000-0000-0000-000000000120', '11111111-0000-0000-0000-000000000120', 'se180024', 'khoi.dv@aives.edu.vn', TRUE, 'AQAAAAIAAYagAAAAEH0qZ8ti6XJn97UDV55izQte1KafEVBpk1c/Z6QhKRc/gsEFK1ehRpAf3htW+VyXMg==', NULL, FALSE),
-  ('aaaaaaaa-0000-0000-0000-000000000121', '11111111-0000-0000-0000-000000000121', 'se180025', 'duy.hg@aives.edu.vn', TRUE, 'AQAAAAIAAYagAAAAEH0qZ8ti6XJn97UDV55izQte1KafEVBpk1c/Z6QhKRc/gsEFK1ehRpAf3htW+VyXMg==', NULL, FALSE),
-  ('aaaaaaaa-0000-0000-0000-000000000122', '11111111-0000-0000-0000-000000000122', 'se180026', 'khang.ph@aives.edu.vn', TRUE, 'AQAAAAIAAYagAAAAEH0qZ8ti6XJn97UDV55izQte1KafEVBpk1c/Z6QhKRc/gsEFK1ehRpAf3htW+VyXMg==', NULL, FALSE),
-  ('aaaaaaaa-0000-0000-0000-000000000123', '11111111-0000-0000-0000-000000000123', 'se180027', 'phuong.nt@aives.edu.vn', TRUE, 'AQAAAAIAAYagAAAAEH0qZ8ti6XJn97UDV55izQte1KafEVBpk1c/Z6QhKRc/gsEFK1ehRpAf3htW+VyXMg==', NULL, FALSE),
-  ('aaaaaaaa-0000-0000-0000-000000000124', '11111111-0000-0000-0000-000000000124', 'se180028', 'trang.lt@aives.edu.vn', TRUE, 'AQAAAAIAAYagAAAAEH0qZ8ti6XJn97UDV55izQte1KafEVBpk1c/Z6QhKRc/gsEFK1ehRpAf3htW+VyXMg==', NULL, FALSE),
-  ('aaaaaaaa-0000-0000-0000-000000000125', '11111111-0000-0000-0000-000000000125', 'se180029', 'dat.tm@aives.edu.vn', TRUE, 'AQAAAAIAAYagAAAAEH0qZ8ti6XJn97UDV55izQte1KafEVBpk1c/Z6QhKRc/gsEFK1ehRpAf3htW+VyXMg==', NULL, FALSE),
-  ('aaaaaaaa-0000-0000-0000-000000000126', '11111111-0000-0000-0000-000000000126', 'se180030', 'cuong.da@aives.edu.vn', TRUE, 'AQAAAAIAAYagAAAAEH0qZ8ti6XJn97UDV55izQte1KafEVBpk1c/Z6QhKRc/gsEFK1ehRpAf3htW+VyXMg==', NULL, FALSE),
-  ('aaaaaaaa-0000-0000-0000-000000000127', '11111111-0000-0000-0000-000000000127', 'se180031', 'huong.hk@aives.edu.vn', TRUE, 'AQAAAAIAAYagAAAAEH0qZ8ti6XJn97UDV55izQte1KafEVBpk1c/Z6QhKRc/gsEFK1ehRpAf3htW+VyXMg==', NULL, FALSE),
-  ('aaaaaaaa-0000-0000-0000-000000000128', '11111111-0000-0000-0000-000000000128', 'se180032', 'phuc.td@aives.edu.vn', TRUE, 'AQAAAAIAAYagAAAAEH0qZ8ti6XJn97UDV55izQte1KafEVBpk1c/Z6QhKRc/gsEFK1ehRpAf3htW+VyXMg==', NULL, FALSE),
-  ('aaaaaaaa-0000-0000-0000-000000000129', '11111111-0000-0000-0000-000000000129', 'se180033', 'thang.pd@aives.edu.vn', TRUE, 'AQAAAAIAAYagAAAAEH0qZ8ti6XJn97UDV55izQte1KafEVBpk1c/Z6QhKRc/gsEFK1ehRpAf3htW+VyXMg==', NULL, FALSE),
-  ('aaaaaaaa-0000-0000-0000-000000000130', '11111111-0000-0000-0000-000000000130', 'se180034', 'yen.dm@aives.edu.vn', TRUE, 'AQAAAAIAAYagAAAAEH0qZ8ti6XJn97UDV55izQte1KafEVBpk1c/Z6QhKRc/gsEFK1ehRpAf3htW+VyXMg==', NULL, FALSE),
-  ('aaaaaaaa-0000-0000-0000-000000000131', '11111111-0000-0000-0000-000000000131', 'se180035', 'bao.ph@aives.edu.vn', TRUE, 'AQAAAAIAAYagAAAAEH0qZ8ti6XJn97UDV55izQte1KafEVBpk1c/Z6QhKRc/gsEFK1ehRpAf3htW+VyXMg==', NULL, FALSE),
-  ('aaaaaaaa-0000-0000-0000-000000000132', '11111111-0000-0000-0000-000000000132', 'se180036', 'huy.hv@aives.edu.vn', TRUE, 'AQAAAAIAAYagAAAAEH0qZ8ti6XJn97UDV55izQte1KafEVBpk1c/Z6QhKRc/gsEFK1ehRpAf3htW+VyXMg==', NULL, FALSE),
-  ('aaaaaaaa-0000-0000-0000-000000000133', '11111111-0000-0000-0000-000000000133', 'se180037', 'nhi.hb@aives.edu.vn', TRUE, 'AQAAAAIAAYagAAAAEH0qZ8ti6XJn97UDV55izQte1KafEVBpk1c/Z6QhKRc/gsEFK1ehRpAf3htW+VyXMg==', NULL, FALSE),
-  ('aaaaaaaa-0000-0000-0000-000000000134', '11111111-0000-0000-0000-000000000134', 'se180038', 'thao.pp@aives.edu.vn', TRUE, 'AQAAAAIAAYagAAAAEH0qZ8ti6XJn97UDV55izQte1KafEVBpk1c/Z6QhKRc/gsEFK1ehRpAf3htW+VyXMg==', NULL, FALSE),
-  ('aaaaaaaa-0000-0000-0000-000000000135', '11111111-0000-0000-0000-000000000135', 'se180039', 'vy.ht@aives.edu.vn', TRUE, 'AQAAAAIAAYagAAAAEH0qZ8ti6XJn97UDV55izQte1KafEVBpk1c/Z6QhKRc/gsEFK1ehRpAf3htW+VyXMg==', NULL, FALSE),
-  ('aaaaaaaa-0000-0000-0000-000000000136', '11111111-0000-0000-0000-000000000136', 'se180040', 'anh.vq@aives.edu.vn', TRUE, 'AQAAAAIAAYagAAAAEH0qZ8ti6XJn97UDV55izQte1KafEVBpk1c/Z6QhKRc/gsEFK1ehRpAf3htW+VyXMg==', NULL, FALSE);
-
--- ---------- Email link tokens (only the SHA-256 of the raw token is stored) ----------
---   demo-setup-token-khoa    : AccountSetup - Khoa sets account name + password (still valid)
---   demo-verify-token-new    : EmailVerification - newstudent verifies the email (still valid)
---   demo-reset-token-used    : PasswordReset already used (must be rejected)
---   demo-reset-token-expired : PasswordReset expired (must be rejected)
-INSERT INTO email_link_tokens (user_account_id, token_hash, purpose, created_at, expires_at, used_at) VALUES
-  ('aaaaaaaa-0000-0000-0000-000000000007', encode(sha256('demo-setup-token-khoa'::bytea), 'hex'), 'AccountSetup', now(), now() + interval '3 days', NULL),
-  ('aaaaaaaa-0000-0000-0000-000000000013', encode(sha256('demo-verify-token-new'::bytea), 'hex'), 'EmailVerification', now() - interval '1 hour', now() + interval '1 day', NULL),
-  ('aaaaaaaa-0000-0000-0000-000000000103', encode(sha256('demo-reset-token-used'::bytea), 'hex'), 'PasswordReset', now() - interval '2 hours', now() + interval '1 day', now() - interval '1 hour'),
-  ('aaaaaaaa-0000-0000-0000-000000000104', encode(sha256('demo-reset-token-expired'::bytea), 'hex'), 'PasswordReset', now() - interval '2 days', now() - interval '1 day', NULL);
+INSERT INTO users (id, role_id, full_name, email, username, student_code, lecturer_code, class_code, is_active, created_at) VALUES
+  ('11111111-0000-0000-0000-000000000001', 'eeeeeeee-0000-0000-0000-000000000003', 'System Administrator', 'admin@aives.edu.vn', 'admin', NULL, NULL, NULL, TRUE, '2026-09-25 07:50+07'),
+  ('11111111-0000-0000-0000-000000000002', 'eeeeeeee-0000-0000-0000-000000000002', 'Nguyễn Văn An', 'an.nv@aives.edu.vn', 'an.nv', NULL, 'L001', NULL, TRUE, '2026-09-25 07:50+07'),
+  ('11111111-0000-0000-0000-000000000003', 'eeeeeeee-0000-0000-0000-000000000002', 'Trần Thị Bình', 'binh.tt@aives.edu.vn', 'binh.tt', NULL, 'L002', NULL, TRUE, '2026-09-25 07:50+07'),
+  ('11111111-0000-0000-0000-000000000004', 'eeeeeeee-0000-0000-0000-000000000001', 'Lê Minh Châu', 'chau.lm@aives.edu.vn', 'chau.lm', 'SE180001', NULL, 'SE1801', TRUE, '2026-09-25 07:50+07'),
+  ('11111111-0000-0000-0000-000000000005', 'eeeeeeee-0000-0000-0000-000000000001', 'Phạm Quốc Dũng', 'dung.pq@aives.edu.vn', 'dung.pq', 'SE180002', NULL, 'SE1801', TRUE, '2026-09-25 07:50+07'),
+  ('11111111-0000-0000-0000-000000000006', 'eeeeeeee-0000-0000-0000-000000000001', 'Hoàng Gia Hân', 'han.hg@aives.edu.vn', 'han.hg', 'SE180003', NULL, 'SE1801', TRUE, '2026-09-25 07:50+07'),
+  ('11111111-0000-0000-0000-000000000007', 'eeeeeeee-0000-0000-0000-000000000001', 'Võ Thanh Khoa', 'khoa.vt@aives.edu.vn', 'khoa.vt', 'SE180004', NULL, 'SE1801', TRUE, '2026-09-25 07:50+07'),
+  ('11111111-0000-0000-0000-000000000008', 'eeeeeeee-0000-0000-0000-000000000003', 'Đỗ Minh Tuấn', 'tuan.dm@aives.edu.vn', 'tuan.dm', NULL, NULL, NULL, TRUE, '2026-09-25 07:50+07'),
+  ('11111111-0000-0000-0000-000000000009', 'eeeeeeee-0000-0000-0000-000000000002', 'Đặng Thu Hà', 'ha.dt@aives.edu.vn', 'ha.dt', NULL, 'L003', NULL, TRUE, '2026-09-25 07:50+07'),
+  ('11111111-0000-0000-0000-000000000010', 'eeeeeeee-0000-0000-0000-000000000002', 'Ngô Đức Long', 'long.nd@aives.edu.vn', 'long.nd', NULL, 'L004', NULL, TRUE, '2026-09-25 07:50+07'),
+  ('11111111-0000-0000-0000-000000000011', 'eeeeeeee-0000-0000-0000-000000000002', 'Bùi Thị Mai', 'mai.bt@aives.edu.vn', 'mai.bt', NULL, 'L005', NULL, TRUE, '2026-09-25 07:50+07'),
+  ('11111111-0000-0000-0000-000000000012', 'eeeeeeee-0000-0000-0000-000000000002', 'Lý Quang Nam', 'nam.lq@aives.edu.vn', 'nam.lq', NULL, 'L006', NULL, TRUE, '2026-09-25 07:50+07'),
+  ('11111111-0000-0000-0000-000000000101', 'eeeeeeee-0000-0000-0000-000000000001', 'Dương Phương Hoa', 'hoa.dp@aives.edu.vn', 'hoa.dp', 'SE180005', NULL, 'SE1801', TRUE, '2026-09-25 07:50+07'),
+  ('11111111-0000-0000-0000-000000000102', 'eeeeeeee-0000-0000-0000-000000000001', 'Phan Phương My', 'my.pp@aives.edu.vn', 'my.pp', 'SE180006', NULL, 'SE1801', TRUE, '2026-09-25 07:50+07'),
+  ('11111111-0000-0000-0000-000000000103', 'eeeeeeee-0000-0000-0000-000000000001', 'Phan Thanh Tâm', 'tam.pt@aives.edu.vn', 'tam.pt', 'SE180007', NULL, 'SE1801', TRUE, '2026-09-25 07:50+07'),
+  ('11111111-0000-0000-0000-000000000104', 'eeeeeeee-0000-0000-0000-000000000001', 'Phan Ngọc Uyên', 'uyen.pn@aives.edu.vn', 'uyen.pn', 'SE180008', NULL, 'SE1801', TRUE, '2026-09-25 07:50+07'),
+  ('11111111-0000-0000-0000-000000000105', 'eeeeeeee-0000-0000-0000-000000000001', 'Đặng Gia Vinh', 'vinh.dg@aives.edu.vn', 'vinh.dg', 'SE180009', NULL, 'SE1801', TRUE, '2026-09-25 07:50+07'),
+  ('11111111-0000-0000-0000-000000000106', 'eeeeeeee-0000-0000-0000-000000000001', 'Đặng Bảo Hiếu', 'hieu.db@aives.edu.vn', 'hieu.db', 'SE180010', NULL, 'SE1801', TRUE, '2026-09-25 07:50+07'),
+  ('11111111-0000-0000-0000-000000000107', 'eeeeeeee-0000-0000-0000-000000000001', 'Hoàng Văn Lộc', 'loc.hv@aives.edu.vn', 'loc.hv', 'SE180011', NULL, 'SE1801', TRUE, '2026-09-25 07:50+07'),
+  ('11111111-0000-0000-0000-000000000108', 'eeeeeeee-0000-0000-0000-000000000001', 'Lê Quốc Sơn', 'son.lq@aives.edu.vn', 'son.lq', 'SE180012', NULL, 'SE1801', TRUE, '2026-09-25 07:50+07'),
+  ('11111111-0000-0000-0000-000000000109', 'eeeeeeee-0000-0000-0000-000000000001', 'Dương Minh Tú', 'tu.dm@aives.edu.vn', 'tu.dm', 'SE180013', NULL, 'SE1802', TRUE, '2026-09-25 07:50+07'),
+  ('11111111-0000-0000-0000-000000000110', 'eeeeeeee-0000-0000-0000-000000000001', 'Bùi Hoàng Tiến', 'tien.bh@aives.edu.vn', 'tien.bh', 'SE180014', NULL, 'SE1802', TRUE, '2026-09-25 07:50+07'),
+  ('11111111-0000-0000-0000-000000000111', 'eeeeeeee-0000-0000-0000-000000000001', 'Bùi Bảo Hải', 'hai.bb@aives.edu.vn', 'hai.bb', 'SE180015', NULL, 'SE1802', TRUE, '2026-09-25 07:50+07'),
+  ('11111111-0000-0000-0000-000000000112', 'eeeeeeee-0000-0000-0000-000000000001', 'Phạm Thị Linh', 'linh.pt@aives.edu.vn', 'linh.pt', 'SE180016', NULL, 'SE1802', TRUE, '2026-09-25 07:50+07'),
+  ('11111111-0000-0000-0000-000000000113', 'eeeeeeee-0000-0000-0000-000000000001', 'Phạm Thị Quỳnh', 'quynh.pt@aives.edu.vn', 'quynh.pt', 'SE180017', NULL, 'SE1802', TRUE, '2026-09-25 07:50+07'),
+  ('11111111-0000-0000-0000-000000000114', 'eeeeeeee-0000-0000-0000-000000000001', 'Hoàng Quốc Trung', 'trung.hq@aives.edu.vn', 'trung.hq', 'SE180018', NULL, 'SE1802', TRUE, '2026-09-25 07:50+07'),
+  ('11111111-0000-0000-0000-000000000115', 'eeeeeeee-0000-0000-0000-000000000001', 'Hồ Gia Nhật', 'nhat.hg@aives.edu.vn', 'nhat.hg', 'SE180019', NULL, 'SE1802', TRUE, '2026-09-25 07:50+07'),
+  ('11111111-0000-0000-0000-000000000116', 'eeeeeeee-0000-0000-0000-000000000001', 'Phan Khánh Giang', 'giang.pk@aives.edu.vn', 'giang.pk', 'SE180020', NULL, 'SE1802', TRUE, '2026-09-25 07:50+07'),
+  ('11111111-0000-0000-0000-000000000117', 'eeeeeeee-0000-0000-0000-000000000001', 'Trần Khánh Lan', 'lan.tk@aives.edu.vn', 'lan.tk', 'SE180021', NULL, 'SE1802', TRUE, '2026-09-25 07:50+07'),
+  ('11111111-0000-0000-0000-000000000118', 'eeeeeeee-0000-0000-0000-000000000001', 'Võ Minh Quân', 'quan.vm@aives.edu.vn', 'quan.vm', 'SE180022', NULL, 'SE1802', TRUE, '2026-09-25 07:50+07'),
+  ('11111111-0000-0000-0000-000000000119', 'eeeeeeee-0000-0000-0000-000000000001', 'Phạm Thanh Trí', 'tri.pt@aives.edu.vn', 'tri.pt', 'SE180023', NULL, 'SE1802', TRUE, '2026-09-25 07:50+07'),
+  ('11111111-0000-0000-0000-000000000120', 'eeeeeeee-0000-0000-0000-000000000001', 'Đỗ Văn Khôi', 'khoi.dv@aives.edu.vn', 'khoi.dv', 'SE180024', NULL, 'SE1802', TRUE, '2026-09-25 07:50+07'),
+  ('11111111-0000-0000-0000-000000000121', 'eeeeeeee-0000-0000-0000-000000000001', 'Huỳnh Gia Duy', 'duy.hg@aives.edu.vn', 'duy.hg', 'SE180025', NULL, 'SE1802', FALSE, '2026-09-25 07:50+07'),
+  ('11111111-0000-0000-0000-000000000122', 'eeeeeeee-0000-0000-0000-000000000001', 'Phạm Hoàng Khang', 'khang.ph@aives.edu.vn', 'khang.ph', 'SE180026', NULL, 'SE1803', TRUE, '2026-09-25 07:50+07'),
+  ('11111111-0000-0000-0000-000000000123', 'eeeeeeee-0000-0000-0000-000000000001', 'Ngô Thu Phương', 'phuong.nt@aives.edu.vn', 'phuong.nt', 'SE180027', NULL, 'SE1803', TRUE, '2026-09-25 07:50+07'),
+  ('11111111-0000-0000-0000-000000000124', 'eeeeeeee-0000-0000-0000-000000000001', 'Lý Thị Trang', 'trang.lt@aives.edu.vn', 'trang.lt', 'SE180028', NULL, 'SE1803', TRUE, '2026-09-25 07:50+07'),
+  ('11111111-0000-0000-0000-000000000125', 'eeeeeeee-0000-0000-0000-000000000001', 'Trần Minh Đạt', 'dat.tm@aives.edu.vn', 'dat.tm', 'SE180029', NULL, 'SE1803', TRUE, '2026-09-25 07:50+07'),
+  ('11111111-0000-0000-0000-000000000126', 'eeeeeeee-0000-0000-0000-000000000001', 'Đỗ Anh Cường', 'cuong.da@aives.edu.vn', 'cuong.da', 'SE180030', NULL, 'SE1803', TRUE, '2026-09-25 07:50+07'),
+  ('11111111-0000-0000-0000-000000000127', 'eeeeeeee-0000-0000-0000-000000000001', 'Hoàng Khánh Hương', 'huong.hk@aives.edu.vn', 'huong.hk', 'SE180031', NULL, 'SE1803', TRUE, '2026-09-25 07:50+07'),
+  ('11111111-0000-0000-0000-000000000128', 'eeeeeeee-0000-0000-0000-000000000001', 'Trần Đức Phúc', 'phuc.td@aives.edu.vn', 'phuc.td', 'SE180032', NULL, 'SE1803', TRUE, '2026-09-25 07:50+07'),
+  ('11111111-0000-0000-0000-000000000129', 'eeeeeeee-0000-0000-0000-000000000001', 'Phan Đức Thắng', 'thang.pd@aives.edu.vn', 'thang.pd', 'SE180033', NULL, 'SE1804', TRUE, '2026-09-25 07:50+07'),
+  ('11111111-0000-0000-0000-000000000130', 'eeeeeeee-0000-0000-0000-000000000001', 'Đỗ Minh Yến', 'yen.dm@aives.edu.vn', 'yen.dm', 'SE180034', NULL, 'SE1804', TRUE, '2026-09-25 07:50+07'),
+  ('11111111-0000-0000-0000-000000000131', 'eeeeeeee-0000-0000-0000-000000000001', 'Phạm Hữu Bảo', 'bao.ph@aives.edu.vn', 'bao.ph', 'SE180035', NULL, 'SE1804', TRUE, '2026-09-25 07:50+07'),
+  ('11111111-0000-0000-0000-000000000132', 'eeeeeeee-0000-0000-0000-000000000001', 'Hồ Văn Huy', 'huy.hv@aives.edu.vn', 'huy.hv', 'SE180036', NULL, 'SE1804', TRUE, '2026-09-25 07:50+07'),
+  ('11111111-0000-0000-0000-000000000133', 'eeeeeeee-0000-0000-0000-000000000001', 'Hồ Bảo Nhi', 'nhi.hb@aives.edu.vn', 'nhi.hb', 'SE180037', NULL, 'SE1804', TRUE, '2026-09-25 07:50+07'),
+  ('11111111-0000-0000-0000-000000000134', 'eeeeeeee-0000-0000-0000-000000000001', 'Phan Phương Thảo', 'thao.pp@aives.edu.vn', 'thao.pp', 'SE180038', NULL, 'SE1804', TRUE, '2026-09-25 07:50+07'),
+  ('11111111-0000-0000-0000-000000000135', 'eeeeeeee-0000-0000-0000-000000000001', 'Hoàng Thanh Vy', 'vy.ht@aives.edu.vn', 'vy.ht', 'SE180039', NULL, 'SE1804', TRUE, '2026-09-25 07:50+07'),
+  ('11111111-0000-0000-0000-000000000136', 'eeeeeeee-0000-0000-0000-000000000001', 'Vũ Quốc Anh', 'anh.vq@aives.edu.vn', 'anh.vq', 'SE180040', NULL, 'SE1804', TRUE, '2026-09-25 07:50+07');
 
 -- ---------- AI service configs (only one active row per service type) ----------
 INSERT INTO ai_service_configs (configured_by, service_type, provider_name, endpoint_url, api_key_encrypted, language, is_active, updated_at) VALUES
@@ -1174,7 +1108,6 @@ INSERT INTO audit_logs (user_id, action, target_entity, target_id, created_at) V
   ('11111111-0000-0000-0000-000000000001', 'AssignLecturer', 'Course', '22222222-0000-0000-0000-000000000003', '2026-09-25 08:05+07'),
   ('11111111-0000-0000-0000-000000000001', 'AssignLecturer', 'Course', '22222222-0000-0000-0000-000000000004', '2026-09-25 08:05+07'),
   ('11111111-0000-0000-0000-000000000008', 'UpdateAIConfig', 'AIServiceConfig', NULL, '2026-09-20 15:00+07'),
-  ('11111111-0000-0000-0000-000000000013', 'Register', 'UserAccount', 'aaaaaaaa-0000-0000-0000-000000000013', now() - interval '1 hour'),
   ('11111111-0000-0000-0000-000000000002', 'CreateSession', 'ExamSession', '33333333-0000-0000-0000-000000000001', '2026-09-26 10:00+07'),
   ('11111111-0000-0000-0000-000000000002', 'ImportParticipants', 'ExamSession', '33333333-0000-0000-0000-000000000001', timestamptz '2026-09-28 09:00+07'),
   ('11111111-0000-0000-0000-000000000003', 'CreateSession', 'ExamSession', '33333333-0000-0000-0000-000000000002', '2026-09-26 10:00+07'),

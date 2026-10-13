@@ -1,7 +1,7 @@
 -- =====================================================================
 -- AIVES - AI-powered Viva Exam System
 -- 01_schema.sql : creates the tables for PostgreSQL (>= 13)
--- Follows docs/ConceptualERD.drawio + docs/ClassDiagram.drawio (18 entities)
+-- Follows docs/ConceptualERD.drawio + docs/ClassDiagram.drawio (15 entities)
 --   + 1 join table course_lecturers (N-N "teaches" relationship).
 -- Enums are stored as VARCHAR + CHECK so they map easily to EF Core (string conversion).
 -- Derived values (rubrics.max_score, question_responses.ai_suggested_score) are kept
@@ -26,11 +26,13 @@ CREATE TABLE roles (
     description  VARCHAR(255)
 );
 
--- ERD: USER  (ROLE 1 --< 0..* "has") - the person; sign-in data lives in user_accounts
+-- ERD: USER  (ROLE 1 --< 0..* "has") - the person; sign-in is handled by Keycloak
+-- id = Keycloak user id (token sub); role mirrors the Keycloak realm role
 CREATE TABLE users (
     id             UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
     role_id        UUID         NOT NULL REFERENCES roles(id),
-    full_name      VARCHAR(150),            -- NULL right after self-registration
+    full_name      VARCHAR(150),
+    email          VARCHAR(255) NOT NULL,
     username       VARCHAR(50)  UNIQUE,
     student_code   VARCHAR(20)  UNIQUE,     -- Student only
     lecturer_code  VARCHAR(20)  UNIQUE,     -- Lecturer only
@@ -39,35 +41,7 @@ CREATE TABLE users (
     created_at     TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 CREATE INDEX ix_users_role ON users(role_id);
-
--- ERD: USER ACCOUNT  (USER 1 -- 1 "signs in with")
-CREATE TABLE user_accounts (
-    id              UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id         UUID          NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
-    account_name    VARCHAR(50),
-    email           VARCHAR(255)  NOT NULL,
-    email_verified  BOOLEAN       NOT NULL DEFAULT FALSE,
-    password_hash   VARCHAR(512),           -- NULL = no password set (Google only / not activated)
-    password_salt   VARCHAR(128),           -- NULL when using Identity PasswordHasher (salt is inside the hash)
-    google_linked   BOOLEAN       NOT NULL DEFAULT FALSE,
-    CHECK (password_salt IS NULL OR password_hash IS NOT NULL)
-);
-CREATE UNIQUE INDEX ux_user_accounts_email ON user_accounts (lower(email));
-CREATE UNIQUE INDEX ux_user_accounts_account_name ON user_accounts (lower(account_name));
-
--- ERD: EMAIL LINK TOKEN  (USER ACCOUNT 1 --< 0..* "receives")
-CREATE TABLE email_link_tokens (
-    id               UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_account_id  UUID         NOT NULL REFERENCES user_accounts(id) ON DELETE CASCADE,
-    token_hash       VARCHAR(128) NOT NULL UNIQUE,   -- only the token hash is stored, never the raw token
-    purpose          VARCHAR(20)  NOT NULL
-                     CHECK (purpose IN ('AccountSetup', 'PasswordReset', 'EmailVerification')),
-    created_at       TIMESTAMPTZ  NOT NULL DEFAULT now(),
-    expires_at       TIMESTAMPTZ  NOT NULL,
-    used_at          TIMESTAMPTZ,
-    CHECK (expires_at > created_at)
-);
-CREATE INDEX ix_email_link_tokens_account ON email_link_tokens(user_account_id);
+CREATE UNIQUE INDEX ux_users_email ON users (lower(email));
 
 -- ERD: AUDIT LOG  (USER 1 --< 0..* "performs")
 CREATE TABLE audit_logs (

@@ -4,7 +4,7 @@ Backend of **AIVES – AI-powered Viva Exam System** (SWD392). An AI examiner as
 
 - **Architecture:** ASP.NET Core 8 **modular monolith** – one API, three business modules, one database
 - **Database:** PostgreSQL 16, accessed with EF Core 8 (Npgsql). The schema is created by **SQL scripts** (`database/`), *not* by EF migrations
-- **Auth:** email + password (ASP.NET Core Identity `PasswordHasher`) → JWT with the role `Student` / `Lecturer` / `Administrator`
+- **Auth:** handled by **Keycloak** (realm `aives`, see [keycloak/README.md](keycloak/README.md)). The API stores no passwords; it only validates Keycloak access tokens, which carry the role `Student` / `Lecturer` / `Administrator`
 - **AI:** STT / TTS / LLM behind interfaces. M1 uses **mocks** (deterministic scoring: same input, same result)
 
 Frontend repo: `ai-oral-exam-web`.
@@ -28,9 +28,10 @@ Frontend repo: `ai-oral-exam-web`.
 git clone https://github.com/SWD392-LAB/ai-oral-exam-api.git
 cd ai-oral-exam-api
 
-# 2) Start the database (the first start runs database/01_schema.sql, then 02_seed.sql)
+# 2) Start the database + Keycloak (the first start runs database/01_schema.sql, then 02_seed.sql,
+#    and imports keycloak/aives-realm.json)
 docker compose up -d
-docker compose ps          # wait until postgres is "healthy"
+docker compose ps          # wait until postgres is "healthy" and keycloak is up (http://localhost:8080)
 
 # 3) Run the API
 dotnet run --project src/AiOralExam.Api --launch-profile http
@@ -45,8 +46,8 @@ In Visual Studio: open `AiOralExam.sln`, set `AiOralExam.Api` as the startup pro
 
 ### Try the M1 exam flow in Swagger
 
-1. Call `POST /api/auth/login` with `{ "email": "han.hg@aives.edu.vn", "password": "Password@123" }`, then copy the `accessToken`.
-2. Click **Authorize** (top right) and paste the token (no `Bearer` prefix needed).
+1. Click **Authorize** (top right), keep the `openid` scope and click **Authorize** again. The client id `aives-swagger` is already filled in.
+2. Sign in on the Keycloak page with `han.hg@aives.edu.vn` / `Password@123`. Swagger then sends the Keycloak access token with every request.
 3. Call `GET /api/interview/my-sessions`. You should see 3 sessions: two open (S1, S4) and one not open yet (S6).
 4. Call `POST /api/interview-attempts` with `{ "examSessionId": "33333333-0000-0000-0000-000000000001" }`. You get `201`, an `attemptId` and the first question (`currentTurn`).
 5. Call `POST /api/interview-attempts/{attemptId}/responses` with `{ "answerText": "..." }`. You get the mock AI score and feedback, plus the next question. Repeat until `outcome = "Completed"`.
@@ -57,7 +58,7 @@ Sample requests are also in `src/AiOralExam.Api/AiOralExam.Api.http` (VS Code RE
 
 ## 3. Seed data
 
-**Shared password: `Password@123`**
+**Shared password: `Password@123`**. The accounts live in Keycloak (`keycloak/aives-realm.json`); each Keycloak user id equals the `users.id` in the seed.
 
 | Email | Role | Use it to test |
 |---|---|---|
@@ -67,12 +68,12 @@ Sample requests are also in `src/AiOralExam.Api/AiOralExam.Api.http` (VS Code RE
 | `ha.dt@aives.edu.vn` | Lecturer | DBI202 (S4) |
 | `long.nd@aives.edu.vn` | Lecturer | SWT301 (S5) |
 | `nam.lq@aives.edu.vn` | Lecturer | PRN232 (S2, S6) |
-| `binh.tt@aives.edu.vn` | Lecturer | Google SSO → **cannot** sign in with a password |
+| `binh.tt@aives.edu.vn` | Lecturer | PRN232 |
 | `han.hg@aives.edu.vn` | Student | **not taken yet** – use it to demo the exam flow |
 | `chau.lm@aives.edu.vn` | Student | S1 finished, **score confirmed** → can view the report |
 | `dung.pq@aives.edu.vn` | Student | S1 finished, **waiting for review** → cannot view the report yet |
-| `khoa.vt@aives.edu.vn` | Student | password not set (activation token: `demo-setup-token-khoa`) |
-| `duy.hg@aives.edu.vn` | Student | **locked** account → sign-in fails |
+| `khoa.vt@aives.edu.vn` | Student | temporary password → Keycloak asks for a new one at first sign-in |
+| `duy.hg@aives.edu.vn` | Student | **disabled** in Keycloak → sign-in fails |
 | 36 other students (`SE180005`…`SE180040`) | Student | see the `users` table |
 
 | Exam session | Course | Status | Questions | Notes |
@@ -89,8 +90,8 @@ The opening times of S1/S4/S6 are relative to `now()` when the seed runs, so a f
 **Reset the data:**
 
 ```bash
-docker compose down -v     # -v also deletes the data volume
-docker compose up -d       # runs 01_schema.sql + 02_seed.sql again
+docker compose down -v     # -v also deletes the data volumes (app database AND Keycloak)
+docker compose up -d       # runs 01_schema.sql + 02_seed.sql and imports the Keycloak realm again
 ```
 
 **Browse the database:** pgAdmin at http://localhost:5050 (`admin@aives.edu.vn` / `admin123`). Add a server with host `postgres`, port `5432`, user `aives`, password `aives@123`. DBeaver / DataGrip work too with host `localhost:5432`.
@@ -100,14 +101,15 @@ docker compose up -d       # runs 01_schema.sql + 02_seed.sql again
 ```
 ai-oral-exam-api/
 ├── AiOralExam.sln
-├── docker-compose.yml               # PostgreSQL 16 + pgAdmin
+├── docker-compose.yml               # PostgreSQL 16 + pgAdmin + Keycloak (+ its database, Mailpit)
+├── keycloak/                        # Keycloak realm (clients, roles, demo users) + its README
 ├── Directory.Build.props            # shared settings: net8.0, nullable...
 ├── Directory.Packages.props         # NuGet versions declared once (Central Package Management)
 ├── database/
 │   ├── 01_schema.sql                # SOURCE OF TRUTH for the schema (16 tables)
 │   └── 02_seed.sql                  # demo data
 ├── src/
-│   ├── AiOralExam.Api/              # Host: Program.cs, JWT, Swagger, CORS, error middleware
+│   ├── AiOralExam.Api/              # Host: Program.cs, Keycloak token validation, Swagger, CORS, error middleware
 │   ├── Shared/
 │   │   └── AiOralExam.SharedKernel/ # shared errors (AppException, ApiError), Roles, ICurrentUser
 │   └── Modules/
@@ -132,7 +134,7 @@ ai-oral-exam-api/
 
 | Module | Does | Owns tables | Depends on |
 |---|---|---|---|
-| **AccessConfig** (F7) | accounts, sign-in, lecturer assignment, exam sessions, questions, rubrics, AI settings, audit log | `users`, `roles`, `password_setup_tokens`, `courses`, `course_lecturers`, `exam_sessions`, `questions`, `rubrics`, `ai_service_configs`, `audit_logs` | – |
+| **AccessConfig** (F7) | user profiles, lecturer assignment, exam sessions, questions, rubrics, AI settings, audit log | `users`, `roles`, `courses`, `course_lecturers`, `exam_sessions`, `questions`, `rubrics`, `ai_service_configs`, `audit_logs` | – |
 | **Interview** (F3) | runs the exam, follow-ups, AI score suggestions, (M3) lecturer review | `participants`, `interview_attempts`, `question_responses`, `interview_turns`, `ai_evaluations`, `score_reviews` | `AccessConfig.Contracts` |
 | **Reporting** (F6) | student reports, results, class statistics, grade sheet export | *(none)* | `Interview.Contracts`, `AccessConfig.Contracts` |
 
@@ -146,7 +148,6 @@ ai-oral-exam-api/
 
 | Method | Route | Role | Tracker task |
 |---|---|---|---|
-| POST | `/api/auth/login` | – | BE-PLAT-07 |
 | GET | `/api/auth/me` | any | BE-PLAT-07 |
 | GET | `/api/courses/mine` | Lecturer, Admin | |
 | GET | `/api/exam-sessions`, `/api/exam-sessions/{id}` | Lecturer, Admin | |
@@ -185,8 +186,9 @@ There is no way back. Each submitted answer returns an `outcome`:
 | Key | Default | Meaning |
 |---|---|---|
 | `ConnectionStrings:Database` | `Host=localhost;Port=5432;Database=aives;Username=aives;Password=aives@123` | matches `docker-compose.yml` |
-| `Jwt:SigningKey` | set in `appsettings.Development.json` | ≥ 32 characters. In real environments, set it with the `Jwt__SigningKey` environment variable |
-| `Jwt:ExpiresMinutes` | 480 | |
+| `Keycloak:Authority` | `http://localhost:8080/realms/aives` | Keycloak realm that issues the tokens; its signing keys are read from `{Authority}/.well-known/openid-configuration` |
+| `Keycloak:Audience` | `aives-api` | tokens must contain this audience |
+| `Keycloak:SwaggerClientId` | `aives-swagger` | client used by Swagger's **Authorize** button |
 | `Interview:ShowAiScoreToStudent` | `true` | M1 shows the mock score to the student right away. From M3 on, set `false` (students see scores only after the lecturer confirms them) |
 | `Interview:Mock:EnableFollowUps` | `false` | turn on to try the follow-up flow with the mock (answers under 15 words trigger a follow-up) |
 | `Interview:AllowRetake` | `false` | whether students may retake an exam (open point) |
@@ -222,8 +224,9 @@ Current unit tests cover the attempt state machine, the deterministic mock AI an
 | `docker compose up` says port 5432 is already in use | Another PostgreSQL is running locally. Change `"5432:5432"` to `"5433:5432"` and use `Port=5433` in the connection string |
 | Edited the SQL files but the database did not change | The scripts only run on an empty volume → `docker compose down -v`, then `up -d` |
 | `/health` reports Unhealthy | The container is not running or not healthy yet: `docker compose ps`, `docker compose logs postgres` |
-| The API fails at startup with `Jwt:SigningKey must be at least 32 characters long` | You are running outside the Development environment → set `Jwt__SigningKey` |
-| `401 unauthenticated` in Swagger | You have not clicked **Authorize**, or the token has expired |
+| Every request returns `401` / the Keycloak sign-in page does not open | Keycloak is not running: `docker compose ps`, `docker compose logs keycloak` |
+| `401 unauthenticated` in Swagger | You have not clicked **Authorize**, or the token has expired (5 minutes) → click **Authorize** again |
+| Changed `keycloak/aives-realm.json` but Keycloak did not change | The realm is imported only once → see [keycloak/README.md](keycloak/README.md) |
 | `409 attempt_already_taken` | That student has already taken this session. Use `han.hg` or reset the database |
 | `409 exam_session_not_open` | The session is not published or is outside its opening hours (S6 is like this on purpose) |
 
@@ -231,7 +234,7 @@ Current unit tests cover the attempt state machine, the deterministic mock AI an
 
 - **M2 – Adaptive AI interview:** replace the `Mock*` classes in `Interview/Application/Ai` with real adapters (OpenAI / Gemini / Google TTS…) and switch the registrations in `InterviewModule.cs`; add an audio upload API + WebSocket.
 - **M3 – Reports & score review:** lecturer API to review transcripts and confirm scores (`ScoreReview` → attempt `Finalized`); export the grade sheet in the school template.
-- **M4 – Access & exam configuration:** Google SSO, set/reset password via email link, CRUD for sessions / questions / rubrics, publishing (locks the questions), account management, AI settings, audit logging.
+- **M4 – Access & exam configuration:** CRUD for sessions / questions / rubrics, publishing (locks the questions), account management (creates the user in Keycloak too, through its Admin API), AI settings, audit logging. Google SSO and password reset are configured in Keycloak, not in the API.
 
 The places to work on are marked `TODO (M2/M3/M4)` in the code.
 

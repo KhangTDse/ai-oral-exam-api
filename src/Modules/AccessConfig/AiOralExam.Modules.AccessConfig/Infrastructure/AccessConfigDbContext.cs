@@ -13,7 +13,6 @@ public sealed class AccessConfigDbContext(DbContextOptions<AccessConfigDbContext
 {
     public DbSet<User> Users => Set<User>();
     public DbSet<Role> Roles => Set<Role>();
-    public DbSet<PasswordSetupToken> PasswordSetupTokens => Set<PasswordSetupToken>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<AiServiceConfig> AiServiceConfigs => Set<AiServiceConfig>();
     public DbSet<Course> Courses => Set<Course>();
@@ -25,8 +24,6 @@ public sealed class AccessConfigDbContext(DbContextOptions<AccessConfigDbContext
     protected override void ConfigureConventions(ModelConfigurationBuilder builder)
     {
         // Enums are stored as VARCHAR (matching the CHECK constraints)
-        builder.Properties<AuthProvider>().HaveConversion<string>();
-        builder.Properties<TokenPurpose>().HaveConversion<string>();
         builder.Properties<AiServiceType>().HaveConversion<string>();
         builder.Properties<SpeechLanguage>().HaveConversion<string>();
         builder.Properties<ExamSessionStatus>().HaveConversion<string>();
@@ -38,7 +35,6 @@ public sealed class AccessConfigDbContext(DbContextOptions<AccessConfigDbContext
         {
             e.ToTable("roles");
             e.HasKey(x => x.Id);
-            e.Property(x => x.Id).ValueGeneratedNever();
         });
 
         b.Entity<User>(e =>
@@ -47,13 +43,6 @@ public sealed class AccessConfigDbContext(DbContextOptions<AccessConfigDbContext
             e.HasKey(x => x.Id);
             e.HasIndex(x => x.Email).IsUnique();
             e.HasOne(x => x.Role).WithMany().HasForeignKey(x => x.RoleId);
-        });
-
-        b.Entity<PasswordSetupToken>(e =>
-        {
-            e.ToTable("password_setup_tokens");
-            e.HasKey(x => x.Id);
-            e.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId);
         });
 
         b.Entity<AuditLog>(e =>

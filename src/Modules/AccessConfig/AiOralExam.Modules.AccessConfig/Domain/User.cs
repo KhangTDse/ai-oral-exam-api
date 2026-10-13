@@ -1,45 +1,29 @@
 namespace AiOralExam.Modules.AccessConfig.Domain;
 
-/// <summary>ERD: USER + ROLE. Class diagram: User (abstract) + Student/Lecturer/Administrator stored in one table.</summary>
+/// <summary>ERD: USER. Sign-in is handled by Keycloak: Id = Keycloak user id (token "sub").</summary>
 public class User
 {
     public Guid Id { get; set; }
+    public Guid RoleId { get; set; }
+    public Role Role { get; set; } = null!;
     public string FullName { get; set; } = null!;
     public string Email { get; set; } = null!;
-    public UserRole RoleId { get; set; }
-    public Role Role { get; set; } = null!;
-    public AuthProvider AuthProvider { get; set; } = AuthProvider.Password;
-
-    /// <summary>ASP.NET Core Identity V3 format (the salt is inside the hash). Null = password not set yet / Google SSO.</summary>
-    public string? PasswordHash { get; set; }
-    public string? PasswordSalt { get; set; }
+    public string? Username { get; set; }
     public string? StudentCode { get; set; }
     public string? LecturerCode { get; set; }
+    public string? ClassCode { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; }
 
     public ICollection<CourseLecturer> CourseAssignments { get; set; } = new List<CourseLecturer>();
 }
 
+/// <summary>ERD: ROLE. Name mirrors the Keycloak realm role (Student, Lecturer, Administrator).</summary>
 public class Role
 {
-    public UserRole Id { get; set; }
-    public string Name { get; set; } = null!;
-}
-
-/// <summary>ERD: PASSWORD SETUP TOKEN. Only the SHA-256 of the token is stored, never the raw token.</summary>
-public class PasswordSetupToken
-{
     public Guid Id { get; set; }
-    public Guid UserId { get; set; }
-    public User User { get; set; } = null!;
-    public string TokenHash { get; set; } = null!;
-    public TokenPurpose Purpose { get; set; }
-    public DateTime ExpiresAt { get; set; }
-    public DateTime? UsedAt { get; set; }
-    public DateTime CreatedAt { get; set; }
-
-    public bool IsUsable(DateTime utcNow) => UsedAt is null && ExpiresAt > utcNow;
+    public string Name { get; set; } = null!;
+    public string? Description { get; set; }
 }
 
 /// <summary>ERD: AUDIT LOG.</summary>

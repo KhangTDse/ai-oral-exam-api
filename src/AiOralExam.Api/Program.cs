@@ -31,22 +31,21 @@ builder.Services
     .AddInterviewModule(connectionString, config)
     .AddReportingModule();
 
-// ---------------------------------------------------------------- Auth (JWT)
-builder.Services.Configure<JwtOptions>(config.GetSection(JwtOptions.SectionName));
-var jwt = config.GetSection(JwtOptions.SectionName).Get<JwtOptions>() ?? new JwtOptions();
-if (string.IsNullOrWhiteSpace(jwt.SigningKey) || jwt.SigningKey.Length < 32)
-    throw new InvalidOperationException("Jwt:SigningKey must be at least 32 characters long.");
+// ---------------------------------------------------------------- Auth (Keycloak access tokens)
+// Keycloak signs the tokens; the signing keys are read from {Authority}/.well-known/openid-configuration.
+var keycloakAuthority = config["Keycloak:Authority"]
+    ?? throw new InvalidOperationException("Missing Keycloak:Authority in appsettings.");
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(o =>
     {
+        o.Authority = keycloakAuthority;
+        o.Audience = config["Keycloak:Audience"];
+        o.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
         o.MapInboundClaims = false; // keep the short claim names: sub, role, email
         o.TokenValidationParameters = new TokenValidationParameters
         {
-            ValidIssuer = jwt.Issuer,
-            ValidAudience = jwt.Audience,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.SigningKey)),
             NameClaimType = AppClaims.Name,
             RoleClaimType = AppClaims.Role,
             ClockSkew = TimeSpan.FromMinutes(1),
@@ -104,17 +103,23 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(o =>
 {
     o.SwaggerDoc("v1", new OpenApiInfo { Title = "AIVES API", Version = "v1", Description = "AI-powered Viva Exam System" });
-    o.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    // "Authorize" signs in through Keycloak (Authorization Code + PKCE, client aives-swagger)
+    o.AddSecurityDefinition("Keycloak", new OpenApiSecurityScheme
     {
-        Type = SecuritySchemeType.Http,
-        Scheme = "bearer",
-        BearerFormat = "JWT",
-        In = ParameterLocation.Header,
-        Description = "Paste the accessToken from POST /api/auth/login (without the 'Bearer ' prefix).",
+        Type = SecuritySchemeType.OAuth2,
+        Flows = new OpenApiOAuthFlows
+        {
+            AuthorizationCode = new OpenApiOAuthFlow
+            {
+                AuthorizationUrl = new Uri($"{keycloakAuthority}/protocol/openid-connect/auth"),
+                TokenUrl = new Uri($"{keycloakAuthority}/protocol/openid-connect/token"),
+                Scopes = new Dictionary<string, string> { ["openid"] = "OpenID Connect" },
+            },
+        },
     });
     o.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
-        [new OpenApiSecurityScheme { Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" } }] = []
+        [new OpenApiSecurityScheme { Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Keycloak" } }] = ["openid"]
     });
     foreach (var xml in Directory.GetFiles(AppContext.BaseDirectory, "AiOralExam*.xml"))
         o.IncludeXmlComments(xml);
@@ -132,7 +137,12 @@ app.UseMiddleware<ExceptionHandlingMiddleware>();
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI(o => o.DocumentTitle = "AIVES API");
+    app.UseSwaggerUI(o =>
+    {
+        o.DocumentTitle = "AIVES API";
+        o.OAuthClientId(config["Keycloak:SwaggerClientId"]);
+        o.OAuthUsePkce();
+    });
 }
 
 app.UseCors();

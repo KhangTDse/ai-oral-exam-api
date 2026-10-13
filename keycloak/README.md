@@ -1,8 +1,8 @@
 # AIVES Keycloak server (local Docker)
 
-This setup runs a standalone Keycloak server. Backend, frontend, and application
-SQL files retain their original authentication flow; no application integration
-has been applied. The clients below are prepared for a future integration.
+This setup runs the Keycloak server that signs users in for AIVES. The API stores
+no passwords: it validates the access tokens issued by this realm (`Keycloak`
+section in `src/AiOralExam.Api/appsettings.json`).
 
 ## Start and stop
 
@@ -65,8 +65,8 @@ Useful demo accounts, all using `Password@123`:
 
 Khoa's temporary password requires a change at first sign-in. The locked student
 account is disabled. Google sign-in is not configured; it requires your own
-Google OAuth credentials. Demo account IDs mirror the seed UUIDs, but no database
-link or login integration has been made in the application.
+Google OAuth credentials. Demo account IDs equal the `users.id` values in
+`database/02_seed.sql`; the API finds the user from the token's `sub` claim.
 
 Test sign-in directly in the AIVES Account Console. Password-reset messages appear
 in the local Mailpit inbox instead of being delivered to real email addresses.

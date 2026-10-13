@@ -1,66 +1,25 @@
 using AiOralExam.Modules.AccessConfig.Domain;
 using AiOralExam.Modules.AccessConfig.Infrastructure;
 using AiOralExam.SharedKernel.Errors;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 
 namespace AiOralExam.Modules.AccessConfig.Application.Auth;
 
+/// <summary>Sign-in, passwords and password reset are handled by Keycloak; the API only reads the profile.</summary>
 public interface IAuthService
 {
-    Task<LoginResponse> LoginWithPasswordAsync(LoginRequest request, CancellationToken ct = default);
     Task<UserProfileDto> GetProfileAsync(Guid userId, CancellationToken ct = default);
-
-    // TODO (M4): LoginWithGoogleAsync(idToken), RequestPasswordResetAsync(email), SetPasswordAsync(token, password)
 }
 
-internal sealed class AuthService(
-    AccessConfigDbContext db,
-    IPasswordHasher<User> passwordHasher,
-    IJwtTokenIssuer tokenIssuer,
-    ILogger<AuthService> logger) : IAuthService
+internal sealed class AuthService(AccessConfigDbContext db) : IAuthService
 {
-    // Same message for every failure -> does not reveal which emails have an account (R-08)
-    private static UnauthorizedException InvalidCredentials() =>
-        new("invalid_credentials", "Incorrect email or password.");
-
-    public async Task<LoginResponse> LoginWithPasswordAsync(LoginRequest request, CancellationToken ct = default)
-    {
-        var email = request.Email.Trim().ToLowerInvariant();
-        var user = await db.Users.FirstOrDefaultAsync(u => u.Email == email, ct);
-
-        if (user is null || !user.IsActive || user.PasswordHash is null)
-        {
-            logger.LogInformation("Login failed for {Email}", email);
-            throw InvalidCredentials();
-        }
-
-        var result = passwordHasher.VerifyHashedPassword(user, user.PasswordHash, request.Password);
-        if (result == PasswordVerificationResult.Failed)
-        {
-            logger.LogInformation("Login failed for user {UserId}", user.Id);
-            throw InvalidCredentials();
-        }
-
-        if (result == PasswordVerificationResult.SuccessRehashNeeded)
-        {
-            user.PasswordHash = passwordHasher.HashPassword(user, request.Password);
-            await db.SaveChangesAsync(ct);
-        }
-
-        var (token, expiresAt) = tokenIssuer.Issue(user);
-        logger.LogInformation("User {UserId} logged in as {Role}", user.Id, user.RoleId);
-        return new LoginResponse(token, expiresAt, ToDto(user));
-    }
-
     public async Task<UserProfileDto> GetProfileAsync(Guid userId, CancellationToken ct = default)
     {
-        var user = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId, ct)
+        var user = await db.Users.AsNoTracking().Include(u => u.Role).FirstOrDefaultAsync(u => u.Id == userId, ct)
                    ?? throw new NotFoundException("user_not_found", "Account not found.");
         return ToDto(user);
     }
 
     private static UserProfileDto ToDto(User u) =>
-        new(u.Id, u.FullName, u.Email, u.RoleId.ToString(), u.StudentCode, u.LecturerCode);
+        new(u.Id, u.FullName, u.Email, u.Role.Name, u.StudentCode, u.LecturerCode);
 }
