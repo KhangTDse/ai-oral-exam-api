@@ -1,3 +1,5 @@
+using AiOralExam.Modules.AccessConfig.Contracts;
+
 namespace AiOralExam.Modules.Interview.Application.Ai;
 
 // =====================================================================
@@ -14,7 +16,7 @@ public sealed record DialogueTurn(string Question, string? Answer, bool IsFollow
 
 public sealed record AnswerAnalysisRequest(
     string MainQuestion,
-    string RubricCriteria,
+    IReadOnlyList<RubricCriterionInfo> Criteria,
     IReadOnlyList<DialogueTurn> Dialogue,
     int FollowUpsUsed,
     int MaxFollowUps,
@@ -35,12 +37,15 @@ public interface IAnswerAnalyzer
 
 public sealed record RubricScoringRequest(
     string MainQuestion,
-    string RubricCriteria,
-    decimal MaxScore,
+    IReadOnlyList<RubricCriterionInfo> Criteria,
     IReadOnlyList<DialogueTurn> Dialogue,
     string Language);
 
-public sealed record RubricScore(decimal SuggestedScore, string Feedback);
+/// <summary>Points the AI gives one rubric criterion (0..MaxPoints).</summary>
+public sealed record CriterionPoints(Guid CriterionId, decimal Points, string? Comment);
+
+/// <summary>One CriterionPoints per criterion; the suggested score is their sum.</summary>
+public sealed record RubricScore(IReadOnlyList<CriterionPoints> Scores, string Feedback);
 
 public interface IRubricScorer
 {

@@ -29,7 +29,7 @@ docker compose stop keycloak keycloak-db mailpit
 | Service | URL | Local credentials |
 | --- | --- | --- |
 | Admin Console | http://localhost:8080/admin/ | `admin` / `admin-dev-only` |
-| AIVES Account Console | http://localhost:8080/realms/aives/account/ | Demo email / `Password@123` |
+| AIVES Account Console | http://localhost:8080/realms/aives/account/ | Demo username or email / `Password@123` |
 | Development email inbox | http://localhost:8025 | No login |
 | OIDC discovery | http://localhost:8080/realms/aives/.well-known/openid-configuration | Public |
 
@@ -53,15 +53,16 @@ administration rights.
 - Password grants and implicit flow are disabled for the public clients.
 - Access tokens expire after five minutes; brute-force protection is enabled.
 - Self-registration is disabled; password reset is enabled through Mailpit.
-- 48 demo accounts are provisioned from the project's seed profiles.
+- 48 demo accounts are provisioned from the project's seed profiles. Each Keycloak
+  username equals `users.username`; users can sign in with the username or the email.
 
 Useful demo accounts, all using `Password@123`:
 
-| Email | Realm role |
-| --- | --- |
-| han.hg@aives.edu.vn | Student |
-| an.nv@aives.edu.vn | Lecturer |
-| admin@aives.edu.vn | Administrator |
+| Username | Email | Realm role |
+| --- | --- | --- |
+| han.hg | han.hg@aives.edu.vn | Student |
+| an.nv | an.nv@aives.edu.vn | Lecturer |
+| admin | admin@aives.edu.vn | Administrator |
 
 Khoa's temporary password requires a change at first sign-in. The locked student
 account is disabled. Google sign-in is not configured; it requires your own

@@ -4,7 +4,7 @@ Backend of **AIVES – AI-powered Viva Exam System** (SWD392). An AI examiner as
 
 - **Architecture:** ASP.NET Core 8 **modular monolith** – one API, three business modules, one database
 - **Database:** PostgreSQL 16, accessed with EF Core 8 (Npgsql). The schema is created by **SQL scripts** (`database/`), *not* by EF migrations
-- **Auth:** handled by **Keycloak** (realm `aives`, see [keycloak/README.md](keycloak/README.md)). The API stores no passwords; it only validates Keycloak access tokens, which carry the role `Student` / `Lecturer` / `Administrator`
+- **Auth:** handled by **Keycloak** (realm `aives`, see [keycloak/README.md](keycloak/README.md)). The API stores no passwords; it only validates Keycloak access tokens. On every request it then reads `users.is_active` and `users.role_id` (`Student` / `Lecturer` / `Administrator`): the database decides access, so deactivating a user or changing a role in AIVES applies at once
 - **AI:** STT / TTS / LLM behind interfaces. M1 uses **mocks** (deterministic scoring: same input, same result)
 
 Frontend repo: `ai-oral-exam-web`.
@@ -58,7 +58,7 @@ Sample requests are also in `src/AiOralExam.Api/AiOralExam.Api.http` (VS Code RE
 
 ## 3. Seed data
 
-**Shared password: `Password@123`**. The accounts live in Keycloak (`keycloak/aives-realm.json`); each Keycloak user id equals the `users.id` in the seed.
+**Shared password: `Password@123`**. The accounts live in Keycloak (`keycloak/aives-realm.json`); each Keycloak user id equals the `users.id` in the seed. Sign in with the email or the username (the part before `@`, e.g. `han.hg`), which equals `users.username`.
 
 | Email | Role | Use it to test |
 |---|---|---|
@@ -134,8 +134,8 @@ ai-oral-exam-api/
 
 | Module | Does | Owns tables | Depends on |
 |---|---|---|---|
-| **AccessConfig** (F7) | user profiles, lecturer assignment, exam sessions, questions, rubrics, AI settings, audit log | `users`, `roles`, `courses`, `course_lecturers`, `exam_sessions`, `questions`, `rubrics`, `ai_service_configs`, `audit_logs` | – |
-| **Interview** (F3) | runs the exam, follow-ups, AI score suggestions, (M3) lecturer review | `participants`, `interview_attempts`, `question_responses`, `interview_turns`, `ai_evaluations`, `score_reviews` | `AccessConfig.Contracts` |
+| **AccessConfig** (F7) | user profiles, lecturer assignment, exam sessions, questions, rubrics, AI settings, audit log | `users`, `roles`, `courses`, `course_lecturers`, `exam_sessions`, `questions`, `rubrics`, `rubric_criteria`, `ai_service_configs`, `audit_logs` | – |
+| **Interview** (F3) | runs the exam, follow-ups, AI score suggestions (per rubric criterion), (M3) lecturer review | `participants`, `interview_attempts`, `question_responses`, `interview_turns`, `criterion_scores`, `score_reviews` | `AccessConfig.Contracts` |
 | **Reporting** (F6) | student reports, results, class statistics, grade sheet export | *(none)* | `Interview.Contracts`, `AccessConfig.Contracts` |
 
 **Three rules that keep the modules apart:**
@@ -203,7 +203,7 @@ The team chose **`database/01_schema.sql` as the source of truth** (no EF migrat
 
 1. Edit `database/01_schema.sql` (and `02_seed.sql` if the demo data is affected).
 2. Update the entity in `Domain/` and the mapping in the `*DbContext.cs` of **the module that owns the table**.
-   - PascalCase property names map to snake_case automatically: `TimeLimitPerQuestion` ↔ `time_limit_per_question`.
+   - PascalCase property names map to snake_case automatically: `TimeLimitPerAnswerSeconds` ↔ `time_limit_per_answer_seconds`.
    - Enums are stored as strings; their names must match the `CHECK` constraints in the SQL.
 3. Reset the database: `docker compose down -v && docker compose up -d`.
 4. Tell the team to reset their databases after the merge.
@@ -225,6 +225,7 @@ Current unit tests cover the attempt state machine, the deterministic mock AI an
 | Edited the SQL files but the database did not change | The scripts only run on an empty volume → `docker compose down -v`, then `up -d` |
 | `/health` reports Unhealthy | The container is not running or not healthy yet: `docker compose ps`, `docker compose logs postgres` |
 | Every request returns `401` / the Keycloak sign-in page does not open | Keycloak is not running: `docker compose ps`, `docker compose logs keycloak` |
+| `403 account_inactive` | The user is missing from `users` or has `is_active = false` |
 | `401 unauthenticated` in Swagger | You have not clicked **Authorize**, or the token has expired (5 minutes) → click **Authorize** again |
 | Changed `keycloak/aives-realm.json` but Keycloak did not change | The realm is imported only once → see [keycloak/README.md](keycloak/README.md) |
 | `409 attempt_already_taken` | That student has already taken this session. Use `han.hg` or reset the database |

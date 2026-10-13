@@ -20,6 +20,7 @@ public sealed class AccessConfigDbContext(DbContextOptions<AccessConfigDbContext
     public DbSet<ExamSession> ExamSessions => Set<ExamSession>();
     public DbSet<Question> Questions => Set<Question>();
     public DbSet<Rubric> Rubrics => Set<Rubric>();
+    public DbSet<RubricCriterion> RubricCriteria => Set<RubricCriterion>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder builder)
     {
@@ -92,6 +93,14 @@ public sealed class AccessConfigDbContext(DbContextOptions<AccessConfigDbContext
             e.ToTable("rubrics");
             e.HasKey(x => x.Id);
             e.Property(x => x.MaxScore).HasPrecision(5, 2);
+            e.HasMany(x => x.Criteria).WithOne().HasForeignKey(c => c.RubricId);
+        });
+
+        b.Entity<RubricCriterion>(e =>
+        {
+            e.ToTable("rubric_criteria");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.MaxPoints).HasPrecision(5, 2);
         });
 
         // Guid ids are generated in code (Guid.NewGuid). ValueGeneratedNever makes EF always INSERT new

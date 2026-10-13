@@ -182,7 +182,7 @@
   "users": [
     {
       "id": "11111111-0000-0000-0000-000000000001",
-      "username": "admin@aives.edu.vn",
+      "username": "admin",
       "email": "admin@aives.edu.vn",
       "emailVerified": true,
       "firstName": "System",
@@ -202,7 +202,7 @@
     },
     {
       "id": "11111111-0000-0000-0000-000000000002",
-      "username": "an.nv@aives.edu.vn",
+      "username": "an.nv",
       "email": "an.nv@aives.edu.vn",
       "emailVerified": true,
       "firstName": "Nguyễn Văn",
@@ -222,7 +222,7 @@
     },
     {
       "id": "11111111-0000-0000-0000-000000000003",
-      "username": "binh.tt@aives.edu.vn",
+      "username": "binh.tt",
       "email": "binh.tt@aives.edu.vn",
       "emailVerified": true,
       "firstName": "Trần Thị",
@@ -242,7 +242,7 @@
     },
     {
       "id": "11111111-0000-0000-0000-000000000004",
-      "username": "chau.lm@aives.edu.vn",
+      "username": "chau.lm",
       "email": "chau.lm@aives.edu.vn",
       "emailVerified": true,
       "firstName": "Lê Minh",
@@ -262,7 +262,7 @@
     },
     {
       "id": "11111111-0000-0000-0000-000000000005",
-      "username": "dung.pq@aives.edu.vn",
+      "username": "dung.pq",
       "email": "dung.pq@aives.edu.vn",
       "emailVerified": true,
       "firstName": "Phạm Quốc",
@@ -282,7 +282,7 @@
     },
     {
       "id": "11111111-0000-0000-0000-000000000006",
-      "username": "han.hg@aives.edu.vn",
+      "username": "han.hg",
       "email": "han.hg@aives.edu.vn",
       "emailVerified": true,
       "firstName": "Hoàng Gia",
@@ -302,7 +302,7 @@
     },
     {
       "id": "11111111-0000-0000-0000-000000000007",
-      "username": "khoa.vt@aives.edu.vn",
+      "username": "khoa.vt",
       "email": "khoa.vt@aives.edu.vn",
       "emailVerified": true,
       "firstName": "Võ Thanh",
@@ -324,7 +324,7 @@
     },
     {
       "id": "11111111-0000-0000-0000-000000000008",
-      "username": "tuan.dm@aives.edu.vn",
+      "username": "tuan.dm",
       "email": "tuan.dm@aives.edu.vn",
       "emailVerified": true,
       "firstName": "Đỗ Minh",
@@ -344,7 +344,7 @@
     },
     {
       "id": "11111111-0000-0000-0000-000000000009",
-      "username": "ha.dt@aives.edu.vn",
+      "username": "ha.dt",
       "email": "ha.dt@aives.edu.vn",
       "emailVerified": true,
       "firstName": "Đặng Thu",
@@ -364,7 +364,7 @@
     },
     {
       "id": "11111111-0000-0000-0000-000000000010",
-      "username": "long.nd@aives.edu.vn",
+      "username": "long.nd",
       "email": "long.nd@aives.edu.vn",
       "emailVerified": true,
       "firstName": "Ngô Đức",
@@ -384,7 +384,7 @@
     },
     {
       "id": "11111111-0000-0000-0000-000000000011",
-      "username": "mai.bt@aives.edu.vn",
+      "username": "mai.bt",
       "email": "mai.bt@aives.edu.vn",
       "emailVerified": true,
       "firstName": "Bùi Thị",
@@ -404,7 +404,7 @@
     },
     {
       "id": "11111111-0000-0000-0000-000000000012",
-      "username": "nam.lq@aives.edu.vn",
+      "username": "nam.lq",
       "email": "nam.lq@aives.edu.vn",
       "emailVerified": true,
       "firstName": "Lý Quang",
@@ -424,7 +424,7 @@
     },
     {
       "id": "11111111-0000-0000-0000-000000000101",
-      "username": "hoa.dp@aives.edu.vn",
+      "username": "hoa.dp",
       "email": "hoa.dp@aives.edu.vn",
       "emailVerified": true,
       "firstName": "Dương Phương",
@@ -444,7 +444,7 @@
     },
     {
       "id": "11111111-0000-0000-0000-000000000102",
-      "username": "my.pp@aives.edu.vn",
+      "username": "my.pp",
       "email": "my.pp@aives.edu.vn",
       "emailVerified": true,
       "firstName": "Phan Phương",
@@ -464,7 +464,7 @@
     },
     {
       "id": "11111111-0000-0000-0000-000000000103",
-      "username": "tam.pt@aives.edu.vn",
+      "username": "tam.pt",
       "email": "tam.pt@aives.edu.vn",
       "emailVerified": true,
       "firstName": "Phan Thanh",
@@ -484,7 +484,7 @@
     },
     {
       "id": "11111111-0000-0000-0000-000000000104",
-      "username": "uyen.pn@aives.edu.vn",
+      "username": "uyen.pn",
       "email": "uyen.pn@aives.edu.vn",
       "emailVerified": true,
       "firstName": "Phan Ngọc",
@@ -504,7 +504,7 @@
     },
     {
       "id": "11111111-0000-0000-0000-000000000105",
-      "username": "vinh.dg@aives.edu.vn",
+      "username": "vinh.dg",
       "email": "vinh.dg@aives.edu.vn",
       "emailVerified": true,
       "firstName": "Đặng Gia",
@@ -524,7 +524,7 @@
     },
     {
       "id": "11111111-0000-0000-0000-000000000106",
-      "username": "hieu.db@aives.edu.vn",
+      "username": "hieu.db",
       "email": "hieu.db@aives.edu.vn",
       "emailVerified": true,
       "firstName": "Đặng Bảo",
@@ -544,7 +544,7 @@
     },
     {
       "id": "11111111-0000-0000-0000-000000000107",
-      "username": "loc.hv@aives.edu.vn",
+      "username": "loc.hv",
       "email": "loc.hv@aives.edu.vn",
       "emailVerified": true,
       "firstName": "Hoàng Văn",
@@ -564,7 +564,7 @@
     },
     {
       "id": "11111111-0000-0000-0000-000000000108",
-      "username": "son.lq@aives.edu.vn",
+      "username": "son.lq",
       "email": "son.lq@aives.edu.vn",
       "emailVerified": true,
       "firstName": "Lê Quốc",
@@ -584,7 +584,7 @@
     },
     {
       "id": "11111111-0000-0000-0000-000000000109",
-      "username": "tu.dm@aives.edu.vn",
+      "username": "tu.dm",
       "email": "tu.dm@aives.edu.vn",
       "emailVerified": true,
       "firstName": "Dương Minh",
@@ -604,7 +604,7 @@
     },
     {
       "id": "11111111-0000-0000-0000-000000000110",
-      "username": "tien.bh@aives.edu.vn",
+      "username": "tien.bh",
       "email": "tien.bh@aives.edu.vn",
       "emailVerified": true,
       "firstName": "Bùi Hoàng",
@@ -624,7 +624,7 @@
     },
     {
       "id": "11111111-0000-0000-0000-000000000111",
-      "username": "hai.bb@aives.edu.vn",
+      "username": "hai.bb",
       "email": "hai.bb@aives.edu.vn",
       "emailVerified": true,
       "firstName": "Bùi Bảo",
@@ -644,7 +644,7 @@
     },
     {
       "id": "11111111-0000-0000-0000-000000000112",
-      "username": "linh.pt@aives.edu.vn",
+      "username": "linh.pt",
       "email": "linh.pt@aives.edu.vn",
       "emailVerified": true,
       "firstName": "Phạm Thị",
@@ -664,7 +664,7 @@
     },
     {
       "id": "11111111-0000-0000-0000-000000000113",
-      "username": "quynh.pt@aives.edu.vn",
+      "username": "quynh.pt",
       "email": "quynh.pt@aives.edu.vn",
       "emailVerified": true,
       "firstName": "Phạm Thị",
@@ -684,7 +684,7 @@
     },
     {
       "id": "11111111-0000-0000-0000-000000000114",
-      "username": "trung.hq@aives.edu.vn",
+      "username": "trung.hq",
       "email": "trung.hq@aives.edu.vn",
       "emailVerified": true,
       "firstName": "Hoàng Quốc",
@@ -704,7 +704,7 @@
     },
     {
       "id": "11111111-0000-0000-0000-000000000115",
-      "username": "nhat.hg@aives.edu.vn",
+      "username": "nhat.hg",
       "email": "nhat.hg@aives.edu.vn",
       "emailVerified": true,
       "firstName": "Hồ Gia",
@@ -724,7 +724,7 @@
     },
     {
       "id": "11111111-0000-0000-0000-000000000116",
-      "username": "giang.pk@aives.edu.vn",
+      "username": "giang.pk",
       "email": "giang.pk@aives.edu.vn",
       "emailVerified": true,
       "firstName": "Phan Khánh",
@@ -744,7 +744,7 @@
     },
     {
       "id": "11111111-0000-0000-0000-000000000117",
-      "username": "lan.tk@aives.edu.vn",
+      "username": "lan.tk",
       "email": "lan.tk@aives.edu.vn",
       "emailVerified": true,
       "firstName": "Trần Khánh",
@@ -764,7 +764,7 @@
     },
     {
       "id": "11111111-0000-0000-0000-000000000118",
-      "username": "quan.vm@aives.edu.vn",
+      "username": "quan.vm",
       "email": "quan.vm@aives.edu.vn",
       "emailVerified": true,
       "firstName": "Võ Minh",
@@ -784,7 +784,7 @@
     },
     {
       "id": "11111111-0000-0000-0000-000000000119",
-      "username": "tri.pt@aives.edu.vn",
+      "username": "tri.pt",
       "email": "tri.pt@aives.edu.vn",
       "emailVerified": true,
       "firstName": "Phạm Thanh",
@@ -804,7 +804,7 @@
     },
     {
       "id": "11111111-0000-0000-0000-000000000120",
-      "username": "khoi.dv@aives.edu.vn",
+      "username": "khoi.dv",
       "email": "khoi.dv@aives.edu.vn",
       "emailVerified": true,
       "firstName": "Đỗ Văn",
@@ -824,7 +824,7 @@
     },
     {
       "id": "11111111-0000-0000-0000-000000000121",
-      "username": "duy.hg@aives.edu.vn",
+      "username": "duy.hg",
       "email": "duy.hg@aives.edu.vn",
       "emailVerified": true,
       "firstName": "Huỳnh Gia",
@@ -844,7 +844,7 @@
     },
     {
       "id": "11111111-0000-0000-0000-000000000122",
-      "username": "khang.ph@aives.edu.vn",
+      "username": "khang.ph",
       "email": "khang.ph@aives.edu.vn",
       "emailVerified": true,
       "firstName": "Phạm Hoàng",
@@ -864,7 +864,7 @@
     },
     {
       "id": "11111111-0000-0000-0000-000000000123",
-      "username": "phuong.nt@aives.edu.vn",
+      "username": "phuong.nt",
       "email": "phuong.nt@aives.edu.vn",
       "emailVerified": true,
       "firstName": "Ngô Thu",
@@ -884,7 +884,7 @@
     },
     {
       "id": "11111111-0000-0000-0000-000000000124",
-      "username": "trang.lt@aives.edu.vn",
+      "username": "trang.lt",
       "email": "trang.lt@aives.edu.vn",
       "emailVerified": true,
       "firstName": "Lý Thị",
@@ -904,7 +904,7 @@
     },
     {
       "id": "11111111-0000-0000-0000-000000000125",
-      "username": "dat.tm@aives.edu.vn",
+      "username": "dat.tm",
       "email": "dat.tm@aives.edu.vn",
       "emailVerified": true,
       "firstName": "Trần Minh",
@@ -924,7 +924,7 @@
     },
     {
       "id": "11111111-0000-0000-0000-000000000126",
-      "username": "cuong.da@aives.edu.vn",
+      "username": "cuong.da",
       "email": "cuong.da@aives.edu.vn",
       "emailVerified": true,
       "firstName": "Đỗ Anh",
@@ -944,7 +944,7 @@
     },
     {
       "id": "11111111-0000-0000-0000-000000000127",
-      "username": "huong.hk@aives.edu.vn",
+      "username": "huong.hk",
       "email": "huong.hk@aives.edu.vn",
       "emailVerified": true,
       "firstName": "Hoàng Khánh",
@@ -964,7 +964,7 @@
     },
     {
       "id": "11111111-0000-0000-0000-000000000128",
-      "username": "phuc.td@aives.edu.vn",
+      "username": "phuc.td",
       "email": "phuc.td@aives.edu.vn",
       "emailVerified": true,
       "firstName": "Trần Đức",
@@ -984,7 +984,7 @@
     },
     {
       "id": "11111111-0000-0000-0000-000000000129",
-      "username": "thang.pd@aives.edu.vn",
+      "username": "thang.pd",
       "email": "thang.pd@aives.edu.vn",
       "emailVerified": true,
       "firstName": "Phan Đức",
@@ -1004,7 +1004,7 @@
     },
     {
       "id": "11111111-0000-0000-0000-000000000130",
-      "username": "yen.dm@aives.edu.vn",
+      "username": "yen.dm",
       "email": "yen.dm@aives.edu.vn",
       "emailVerified": true,
       "firstName": "Đỗ Minh",
@@ -1024,7 +1024,7 @@
     },
     {
       "id": "11111111-0000-0000-0000-000000000131",
-      "username": "bao.ph@aives.edu.vn",
+      "username": "bao.ph",
       "email": "bao.ph@aives.edu.vn",
       "emailVerified": true,
       "firstName": "Phạm Hữu",
@@ -1044,7 +1044,7 @@
     },
     {
       "id": "11111111-0000-0000-0000-000000000132",
-      "username": "huy.hv@aives.edu.vn",
+      "username": "huy.hv",
       "email": "huy.hv@aives.edu.vn",
       "emailVerified": true,
       "firstName": "Hồ Văn",
@@ -1064,7 +1064,7 @@
     },
     {
       "id": "11111111-0000-0000-0000-000000000133",
-      "username": "nhi.hb@aives.edu.vn",
+      "username": "nhi.hb",
       "email": "nhi.hb@aives.edu.vn",
       "emailVerified": true,
       "firstName": "Hồ Bảo",
@@ -1084,7 +1084,7 @@
     },
     {
       "id": "11111111-0000-0000-0000-000000000134",
-      "username": "thao.pp@aives.edu.vn",
+      "username": "thao.pp",
       "email": "thao.pp@aives.edu.vn",
       "emailVerified": true,
       "firstName": "Phan Phương",
@@ -1104,7 +1104,7 @@
     },
     {
       "id": "11111111-0000-0000-0000-000000000135",
-      "username": "vy.ht@aives.edu.vn",
+      "username": "vy.ht",
       "email": "vy.ht@aives.edu.vn",
       "emailVerified": true,
       "firstName": "Hoàng Thanh",
@@ -1124,7 +1124,7 @@
     },
     {
       "id": "11111111-0000-0000-0000-000000000136",
-      "username": "anh.vq@aives.edu.vn",
+      "username": "anh.vq",
       "email": "anh.vq@aives.edu.vn",
       "emailVerified": true,
       "firstName": "Vũ Quốc",

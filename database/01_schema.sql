@@ -31,9 +31,9 @@ CREATE TABLE roles (
 CREATE TABLE users (
     id             UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
     role_id        UUID         NOT NULL REFERENCES roles(id),
-    full_name      VARCHAR(150),
+    full_name      VARCHAR(150) NOT NULL,
     email          VARCHAR(255) NOT NULL,
-    username       VARCHAR(50)  UNIQUE,
+    username       VARCHAR(50)  NOT NULL UNIQUE,  -- unique sign-in name = the Keycloak username
     student_code   VARCHAR(20)  UNIQUE,     -- Student only
     lecturer_code  VARCHAR(20)  UNIQUE,     -- Lecturer only
     class_code     VARCHAR(20),             -- Student only, e.g. SE1801

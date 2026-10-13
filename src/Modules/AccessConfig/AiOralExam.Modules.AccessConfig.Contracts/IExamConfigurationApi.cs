@@ -16,4 +16,7 @@ public interface IExamConfigurationApi
     Task<bool> IsLecturerOfSessionAsync(Guid lecturerId, Guid examSessionId, CancellationToken ct = default);
 
     Task<IReadOnlyList<UserBasicInfo>> GetUsersAsync(IReadOnlyCollection<Guid> userIds, CancellationToken ct = default);
+
+    /// <summary>Role + active flag stored in the database. Null when the user does not exist.</summary>
+    Task<UserAccessInfo?> GetUserAccessAsync(Guid userId, CancellationToken ct = default);
 }

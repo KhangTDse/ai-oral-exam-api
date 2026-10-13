@@ -11,8 +11,13 @@ public class QuestionResponse
     public int FollowUpCount { get; set; }
     public bool IsFinished { get; set; }
 
+    /// <summary>AI-suggested score = sum of CriterionScores.Points (also kept in sync by a trigger in 01_schema.sql).</summary>
+    public decimal? AiSuggestedScore { get; set; }
+    public string? AiFeedback { get; set; }
+    public DateTime? EvaluatedAt { get; set; }
+
     public ICollection<InterviewTurn> Turns { get; set; } = new List<InterviewTurn>();
-    public AiEvaluation? Evaluation { get; set; }
+    public ICollection<CriterionScore> CriterionScores { get; set; } = new List<CriterionScore>();
 
     /// <summary>The turn waiting for an answer = the last turn, if it has no AnsweredAt yet.</summary>
     public InterviewTurn? CurrentTurn
@@ -39,6 +44,16 @@ public class QuestionResponse
         if (type == TurnType.FollowUp) FollowUpCount++;
         return turn;
     }
+
+    /// <summary>Stores the AI scoring once (Reporting only reads it) and finishes this question.</summary>
+    public void RecordAiEvaluation(IEnumerable<CriterionScore> scores, string feedback, DateTime utcNow)
+    {
+        foreach (var s in scores) CriterionScores.Add(s);
+        AiSuggestedScore = CriterionScores.Sum(s => s.Points);
+        AiFeedback = feedback;
+        EvaluatedAt = utcNow;
+        IsFinished = true;
+    }
 }
 
 /// <summary>ERD: INTERVIEW TURN - one question/answer exchange. The turns together are the transcript.</summary>
@@ -55,14 +70,14 @@ public class InterviewTurn
     public DateTime? AnsweredAt { get; set; }
 }
 
-/// <summary>ERD: AI EVALUATION - the AI-SUGGESTED score for one question response. Stored once; Reporting only reads it.</summary>
-public class AiEvaluation
+/// <summary>ERD: CRITERION SCORE - the points the AI gives one rubric criterion for one question response.</summary>
+public class CriterionScore
 {
     public Guid Id { get; set; }
     public Guid QuestionResponseId { get; set; }
-    public decimal SuggestedScore { get; set; }
-    public string Feedback { get; set; } = null!;
-    public DateTime EvaluatedAt { get; set; }
+    public Guid RubricCriterionId { get; set; }   // FK to rubric_criteria (module F7) - id only
+    public decimal Points { get; set; }
+    public string? Comment { get; set; }
 }
 
 /// <summary>ERD: SCORE REVIEW - the FINAL score the lecturer confirms for the whole attempt.</summary>

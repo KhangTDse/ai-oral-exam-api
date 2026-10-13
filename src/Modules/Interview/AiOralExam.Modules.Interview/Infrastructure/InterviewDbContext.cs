@@ -14,7 +14,7 @@ public sealed class InterviewDbContext(DbContextOptions<InterviewDbContext> opti
     public DbSet<InterviewAttempt> InterviewAttempts => Set<InterviewAttempt>();
     public DbSet<QuestionResponse> QuestionResponses => Set<QuestionResponse>();
     public DbSet<InterviewTurn> InterviewTurns => Set<InterviewTurn>();
-    public DbSet<AiEvaluation> AiEvaluations => Set<AiEvaluation>();
+    public DbSet<CriterionScore> CriterionScores => Set<CriterionScore>();
     public DbSet<ScoreReview> ScoreReviews => Set<ScoreReview>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder builder)
@@ -49,8 +49,9 @@ public sealed class InterviewDbContext(DbContextOptions<InterviewDbContext> opti
             e.ToTable("question_responses");
             e.HasKey(x => x.Id);
             e.Ignore(x => x.CurrentTurn);
+            e.Property(x => x.AiSuggestedScore).HasPrecision(5, 2);
             e.HasMany(x => x.Turns).WithOne().HasForeignKey(t => t.QuestionResponseId);
-            e.HasOne(x => x.Evaluation).WithOne().HasForeignKey<AiEvaluation>(v => v.QuestionResponseId);
+            e.HasMany(x => x.CriterionScores).WithOne().HasForeignKey(s => s.QuestionResponseId);
         });
 
         b.Entity<InterviewTurn>(e =>
@@ -59,11 +60,11 @@ public sealed class InterviewDbContext(DbContextOptions<InterviewDbContext> opti
             e.HasKey(x => x.Id);
         });
 
-        b.Entity<AiEvaluation>(e =>
+        b.Entity<CriterionScore>(e =>
         {
-            e.ToTable("ai_evaluations");
+            e.ToTable("criterion_scores");
             e.HasKey(x => x.Id);
-            e.Property(x => x.SuggestedScore).HasPrecision(5, 2);
+            e.Property(x => x.Points).HasPrecision(5, 2);
         });
 
         b.Entity<ScoreReview>(e =>

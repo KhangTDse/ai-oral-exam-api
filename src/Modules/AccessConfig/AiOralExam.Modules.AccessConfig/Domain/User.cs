@@ -8,7 +8,8 @@ public class User
     public Role Role { get; set; } = null!;
     public string FullName { get; set; } = null!;
     public string Email { get; set; } = null!;
-    public string? Username { get; set; }
+    /// <summary>Unique sign-in name; equals the Keycloak username (users may also sign in with the email).</summary>
+    public string Username { get; set; } = null!;
     public string? StudentCode { get; set; }
     public string? LecturerCode { get; set; }
     public string? ClassCode { get; set; }
