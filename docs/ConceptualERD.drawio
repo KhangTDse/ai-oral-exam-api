@@ -43,12 +43,6 @@
         <mxCell id="audit" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6c8ebf;fontStyle=1;" value="AUDIT LOG" vertex="1">
           <mxGeometry x="40" y="560" width="170" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="account" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6c8ebf;fontStyle=1;" value="USER ACCOUNT" vertex="1">
-          <mxGeometry x="320" y="560" width="170" height="60" as="geometry" />
-        </mxCell>
-        <mxCell id="token" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6c8ebf;fontStyle=1;" value="EMAIL LINK TOKEN" vertex="1">
-          <mxGeometry x="320" y="700" width="170" height="60" as="geometry" />
-        </mxCell>
         <mxCell id="review" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6c8ebf;fontStyle=1;" value="SCORE REVIEW" vertex="1">
           <mxGeometry x="620" y="560" width="170" height="60" as="geometry" />
         </mxCell>
@@ -65,12 +59,6 @@
               <mxPoint x="265" y="400" />
             </Array>
           </mxGeometry>
-        </mxCell>
-        <mxCell id="r_account" edge="1" parent="1" source="user" target="account" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=ERmandOne;endArrow=ERmandOne;startFill=0;endFill=0;startSize=10;endSize=10;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" value="signs in with">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="r_token" edge="1" parent="1" source="account" target="token" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=ERmandOne;endArrow=ERzeroToMany;startFill=0;endFill=0;startSize=10;endSize=10;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" value="receives">
-          <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="r_cfg" edge="1" parent="1" source="user" target="aiconfig" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=ERmandOne;endArrow=ERzeroToMany;startFill=0;endFill=0;startSize=10;endSize=10;labelBackgroundColor=#FFFFFF;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" value="configures">
           <mxGeometry relative="1" as="geometry" />
@@ -151,7 +139,7 @@
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="note" parent="1" style="shape=note;whiteSpace=wrap;html=1;size=14;align=left;verticalAlign=top;spacingLeft=8;spacingTop=4;fillColor=#FFF9E6;strokeColor=#D6B656;fontSize=11;" value="Notes:&lt;br&gt;• USER covers Student, Lecturer and Administrator (via ROLE) and keeps the person&#39;s details (name, username, student/lecturer code, class). Each user has exactly one USER ACCOUNT with the sign-in data: account name, email, Google link, salt + password hash (never the plain password). A user signs in with Google (if linked) and/or with account name or email + password (if set).&lt;br&gt;• INTERVIEW TURN = one question (main or follow-up) + the student&#39;s answer transcript; the audio file is kept in Object Storage.&lt;br&gt;• RUBRIC = the scoring guide of one question, made of RUBRIC CRITERION items (description + max points). The AI gives each criterion a CRITERION SCORE; their sum is the AI-suggested score kept on QUESTION RESPONSE with the AI feedback.&lt;br&gt;• SCORE REVIEW = the lecturer&#39;s final score for the attempt (pending until the lecturer confirms it); it starts at the sum of the AI-suggested scores.&lt;br&gt;• EMAIL LINK TOKEN = one-time, expiring email link: verify the email after registering, set the account name and password (account-setup link), or reset a forgotten password (reset link: password only).&lt;br&gt;• AI SERVICE CONFIG = STT/TTS/LLM provider, endpoint, encrypted API key and STT/TTS language (VI/EN).&lt;br&gt;• A draft EXAM SESSION may have no questions yet, and a QUESTION may have no rubric yet. It can be published only when it has at least one question, every question has a rubric and at least one student is on the list.&lt;br&gt;• PARTICIPANT = a student on the session&#39;s list, imported by the lecturer. Only listed students can start an attempt, one attempt each, inside the session time window.&lt;br&gt;• A question not reached before the session closes has no QUESTION RESPONSE; it counts as 0 in the attempt total." vertex="1">
+        <mxCell id="note" parent="1" style="shape=note;whiteSpace=wrap;html=1;size=14;align=left;verticalAlign=top;spacingLeft=8;spacingTop=4;fillColor=#FFF9E6;strokeColor=#D6B656;fontSize=11;" value="Notes:&lt;br&gt;• USER covers Student, Lecturer and Administrator (via ROLE) and keeps the person&#39;s details (name, email, username, student/lecturer code, class). Sign-in, passwords, Google login, email verification and password reset are handled by Keycloak (external identity provider), so the app stores no credentials. A USER&#39;s id equals the Keycloak user id (the token&#39;s sub claim); ROLE mirrors the user&#39;s Keycloak realm role.&lt;br&gt;• INTERVIEW TURN = one question (main or follow-up) + the student&#39;s answer transcript; the audio file is kept in Object Storage.&lt;br&gt;• RUBRIC = the scoring guide of one question, made of RUBRIC CRITERION items (description + max points). The AI gives each criterion a CRITERION SCORE; their sum is the AI-suggested score kept on QUESTION RESPONSE with the AI feedback.&lt;br&gt;• SCORE REVIEW = the lecturer&#39;s final score for the attempt (pending until the lecturer confirms it); it starts at the sum of the AI-suggested scores.&lt;br&gt;• AI SERVICE CONFIG = STT/TTS/LLM provider, endpoint, encrypted API key and STT/TTS language (VI/EN).&lt;br&gt;• A draft EXAM SESSION may have no questions yet, and a QUESTION may have no rubric yet. It can be published only when it has at least one question, every question has a rubric and at least one student is on the list.&lt;br&gt;• PARTICIPANT = a student on the session&#39;s list, imported by the lecturer. Only listed students can start an attempt, one attempt each, inside the session time window.&lt;br&gt;• A question not reached before the session closes has no QUESTION RESPONSE; it counts as 0 in the attempt total." vertex="1">
           <mxGeometry x="560" y="700" width="860" height="215" as="geometry" />
         </mxCell>
       </root>
