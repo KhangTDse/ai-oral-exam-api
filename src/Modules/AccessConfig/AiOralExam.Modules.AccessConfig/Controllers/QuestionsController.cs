@@ -35,6 +35,14 @@ public sealed class QuestionsController(IQuestionService service) : ControllerBa
         }, x);
     }
 
+    [HttpPost("import")]
+    public async Task<ActionResult<IReadOnlyList<QuestionDto>>> Import(
+        Guid sessionId, ImportQuestionsRequest r, CancellationToken ct)
+    {
+        var questions = await service.ImportAsync(sessionId, r, ct);
+        return CreatedAtAction(nameof(List), new { sessionId }, questions);
+    }
+
     [HttpPut("{id:guid}")]
     public Task<QuestionDto> Update(Guid sessionId, Guid id, UpdateQuestionRequest r, CancellationToken ct)
         => service.UpdateAsync(sessionId, id, r, ct);

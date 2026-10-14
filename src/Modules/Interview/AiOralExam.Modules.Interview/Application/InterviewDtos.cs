@@ -32,6 +32,10 @@ public sealed record SubmitAnswerRequest(
     // Null/empty = no answer (e.g. the FE auto-submits when time runs out).
     [MaxLength(10000)] string? AnswerText);
 
+public sealed record SubmitScoreReviewRequest(
+    [property: Range(typeof(decimal), "0", "999.99")] decimal FinalScore,
+    string? Comment);
+
 public sealed record EvaluationDto(
     Guid QuestionId,
     decimal SuggestedScore,

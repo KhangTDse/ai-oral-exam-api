@@ -18,6 +18,7 @@ namespace AiOralExam.Modules.AccessConfig.Controllers;
 public sealed class AiConfigsController(IAiConfigService service) : ControllerBase
 {
     [HttpGet]
+    [HttpGet("~/api/admin/ai-settings")]
     public Task<IReadOnlyList<AiServiceConfigDto>> List(CancellationToken ct)
         => service.ListAsync(ct);
 
@@ -39,6 +40,10 @@ public sealed class AiConfigsController(IAiConfigService service) : ControllerBa
     [HttpPut("{id:guid}")]
     public Task<AiServiceConfigDto> Update(Guid id, SaveAiServiceConfigRequest r, CancellationToken ct)
         => service.SaveAsync(id, r, ct);
+
+    [HttpPut("~/api/admin/ai-settings")]
+    public Task<AiServiceConfigDto> SaveActive(SaveAiServiceConfigRequest r, CancellationToken ct)
+        => service.SaveActiveAsync(r, ct);
 
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)

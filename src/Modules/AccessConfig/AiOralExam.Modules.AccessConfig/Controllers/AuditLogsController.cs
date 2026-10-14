@@ -17,6 +17,7 @@ namespace AiOralExam.Modules.AccessConfig.Controllers;
 public sealed class AuditLogsController(IAuditLogService service) : ControllerBase
 {
     [HttpGet]
+    [HttpGet("~/api/admin/audit-logs")]
     public Task<IReadOnlyList<AuditLogDto>> List(Guid? userId, string? action, string? targetEntity,
         DateTime? from, DateTime? to, [FromQuery] int take = 100, CancellationToken ct = default)
         => service.ListAsync(userId, action, targetEntity, from, to, take, ct);

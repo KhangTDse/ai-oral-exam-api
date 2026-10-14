@@ -11,6 +11,7 @@ using AiOralExam.Modules.AccessConfig.Infrastructure;
 using AiOralExam.SharedKernel.Errors;
 using AiOralExam.SharedKernel.Security;
 using Microsoft.EntityFrameworkCore;
+using ValidationException = AiOralExam.SharedKernel.Errors.ValidationException;
 
 namespace AiOralExam.Modules.AccessConfig.Application.Questions;
 public sealed record QuestionDto(Guid Id, int OrderNo, string Content, bool HasRubric);
@@ -18,6 +19,8 @@ public sealed record QuestionDto(Guid Id, int OrderNo, string Content, bool HasR
 public sealed record CreateQuestionRequest(
     [Range(1, int.MaxValue)] int OrderNo,
     [Required] string Content);
+
+public sealed record ImportQuestionsRequest([Required] IReadOnlyList<CreateQuestionRequest> Questions);
 
 public sealed record UpdateQuestionRequest(
     [Range(1, int.MaxValue)] int OrderNo,
@@ -28,6 +31,7 @@ public interface IQuestionService
     Task<IReadOnlyList<QuestionDto>> ListAsync(Guid sessionId, CancellationToken ct);
     Task<QuestionDto> GetAsync(Guid sessionId, Guid id, CancellationToken ct);
     Task<QuestionDto> CreateAsync(Guid sessionId, CreateQuestionRequest r, CancellationToken ct);
+    Task<IReadOnlyList<QuestionDto>> ImportAsync(Guid sessionId, ImportQuestionsRequest r, CancellationToken ct);
     Task<QuestionDto> UpdateAsync(Guid sessionId, Guid id, UpdateQuestionRequest r, CancellationToken ct);
     Task DeleteAsync(Guid sessionId, Guid id, CancellationToken ct);
 }
@@ -80,6 +84,76 @@ internal sealed class QuestionService(AccessConfigDbContext db, ICurrentUser me)
         await db.SaveChangesAsync(ct);
         await CourseService.Audit(db, me.Id, "Create", "Question", q.Id, ct);
         return new(q.Id, q.OrderNo, q.Content, false);
+    }
+
+    public async Task<IReadOnlyList<QuestionDto>> ImportAsync(Guid sid, ImportQuestionsRequest r, CancellationToken ct)
+    {
+        await Editable(sid, ct);
+        var errors = new Dictionary<string, string[]>();
+        if (r.Questions is null || r.Questions.Count == 0)
+            errors["questions"] = ["At least one question is required."];
+        else
+        {
+            for (var i = 0; i < r.Questions.Count; i++)
+            {
+                var question = r.Questions[i];
+                if (question is null)
+                {
+                    errors[$"questions[{i}]"] = ["Question cannot be null."];
+                    continue;
+                }
+                if (question.OrderNo <= 0)
+                    errors[$"questions[{i}].orderNo"] = ["OrderNo must be greater than 0."];
+                if (string.IsNullOrWhiteSpace(question.Content))
+                    errors[$"questions[{i}].content"] = ["Content is required."];
+            }
+
+            foreach (var group in r.Questions
+                .Select((question, index) => (question, index))
+                .Where(x => x.question is not null && x.question.OrderNo > 0)
+                .GroupBy(x => x.question.OrderNo)
+                .Where(x => x.Count() > 1))
+            {
+                foreach (var item in group)
+                    errors[$"questions[{item.index}].orderNo"] = ["OrderNo must be unique within the import."];
+            }
+        }
+
+        if (errors.Count > 0)
+            throw new ValidationException(errors);
+
+        var questions = r.Questions!;
+        var orderNumbers = questions.Select(x => x.OrderNo).ToArray();
+        var existingOrderNumbers = await db.Questions
+            .Where(x => x.ExamSessionId == sid && orderNumbers.Contains(x.OrderNo))
+            .Select(x => x.OrderNo)
+            .ToListAsync(ct);
+        foreach (var item in questions.Select((question, index) => (question, index)))
+        {
+            if (existingOrderNumbers.Contains(item.question.OrderNo))
+                errors[$"questions[{item.index}].orderNo"] = ["OrderNo already exists in this exam session."];
+        }
+        if (errors.Count > 0)
+            throw new ValidationException(errors);
+
+        await using var transaction = db.Database.CurrentTransaction is null
+            ? await db.Database.BeginTransactionAsync(ct)
+            : null;
+        var imported = questions.Select(item => new Question
+        {
+            Id = Guid.NewGuid(),
+            ExamSessionId = sid,
+            OrderNo = item.OrderNo,
+            Content = item.Content.Trim()
+        }).ToList();
+        db.Questions.AddRange(imported);
+        await db.SaveChangesAsync(ct);
+        foreach (var question in imported)
+            await CourseService.Audit(db, me.Id, "Create", "Question", question.Id, ct);
+        if (transaction is not null)
+            await transaction.CommitAsync(ct);
+
+        return imported.Select(x => new QuestionDto(x.Id, x.OrderNo, x.Content, false)).ToList();
     }
 
     public async Task<QuestionDto> UpdateAsync(Guid sid, Guid id, UpdateQuestionRequest r, CancellationToken ct)

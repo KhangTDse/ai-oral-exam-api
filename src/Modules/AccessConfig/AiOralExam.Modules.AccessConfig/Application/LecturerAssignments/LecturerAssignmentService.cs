@@ -21,12 +21,34 @@ public sealed record LecturerDto(
 public interface ILecturerAssignmentService
 {
     Task<IReadOnlyList<LecturerDto>> ListAsync(Guid courseId, CancellationToken ct);
+    Task ValidateLecturerAsync(Guid lecturerId, CancellationToken ct);
     Task<LecturerDto> AssignAsync(Guid courseId, Guid lecturerId, CancellationToken ct);
     Task RemoveAsync(Guid courseId, Guid lecturerId, CancellationToken ct);
 }
 
 internal sealed class LecturerAssignmentService(AccessConfigDbContext db, ICurrentUser me) : ILecturerAssignmentService
 {
+    async Task<User> LoadLecturerAsync(Guid lecturerId, CancellationToken ct)
+    {
+        var user = await db.Users.Include(x => x.Role)
+            .FirstOrDefaultAsync(x => x.Id == lecturerId, ct) ??
+            throw new NotFoundException("user_not_found", "Lecturer not found.");
+        if (user.Role.Name != UserRole.Lecturer.ToString())
+            throw new ValidationException(new Dictionary<string, string[]>
+            {
+                ["lecturerId"] = ["User must have Lecturer role."]
+            });
+        if (!user.IsActive)
+            throw new ValidationException(new Dictionary<string, string[]>
+            {
+                ["lecturerId"] = ["Lecturer must be active."]
+            });
+        return user;
+    }
+
+    public async Task ValidateLecturerAsync(Guid lecturerId, CancellationToken ct)
+        => _ = await LoadLecturerAsync(lecturerId, ct);
+
     public async Task<IReadOnlyList<LecturerDto>> ListAsync(Guid courseId, CancellationToken ct)
         => await db.CourseLecturers.AsNoTracking()
         .Where(x => x.CourseId == courseId)
@@ -39,16 +61,7 @@ internal sealed class LecturerAssignmentService(AccessConfigDbContext db, ICurre
     {
         if (!await db.Courses.AnyAsync(x => x.Id == courseId, ct))
             throw new NotFoundException("course_not_found", "Course not found.");
-        var u = await db.Users.Include(x => x.Role)
-            .FirstOrDefaultAsync(x => x.Id == lecturerId, ct) ??
-            throw new NotFoundException("user_not_found", "Lecturer not found.");
-        if (u.Role.Name != UserRole.Lecturer.ToString())
-            throw new ValidationException(new Dictionary<string, string[]>
-            {
-                {
-                    "lecturerId", ["User must have Lecturer role."]
-                }
-            });
+        var u = await LoadLecturerAsync(lecturerId, ct);
         if (await db.CourseLecturers.AnyAsync(x => x.CourseId == courseId && x.LecturerId == lecturerId, ct))
             throw new ConflictException("lecturer_already_assigned", "Lecturer is already assigned.");
         var x = new CourseLecturer
@@ -57,9 +70,14 @@ internal sealed class LecturerAssignmentService(AccessConfigDbContext db, ICurre
             LecturerId = lecturerId,
             AssignedAt = DateTime.UtcNow
         };
+        await using var transaction = db.Database.CurrentTransaction is null
+            ? await db.Database.BeginTransactionAsync(ct)
+            : null;
         db.CourseLecturers.Add(x);
         await db.SaveChangesAsync(ct);
         await CourseService.Audit(db, me.Id, "AssignLecturer", "Course", courseId, ct);
+        if (transaction is not null)
+            await transaction.CommitAsync(ct);
         return new(u.Id, u.FullName, u.Email, u.LecturerCode, x.AssignedAt);
     }
 
@@ -67,8 +85,13 @@ internal sealed class LecturerAssignmentService(AccessConfigDbContext db, ICurre
     {
         var x = await db.CourseLecturers.FirstOrDefaultAsync(x => x.CourseId == courseId && x.LecturerId == lecturerId, ct) ??
             throw new NotFoundException("assignment_not_found", "Lecturer assignment not found.");
+        await using var transaction = db.Database.CurrentTransaction is null
+            ? await db.Database.BeginTransactionAsync(ct)
+            : null;
         db.CourseLecturers.Remove(x);
         await db.SaveChangesAsync(ct);
         await CourseService.Audit(db, me.Id, "RemoveLecturer", "Course", courseId, ct);
+        if (transaction is not null)
+            await transaction.CommitAsync(ct);
     }
 }
