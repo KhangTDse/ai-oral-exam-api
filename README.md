@@ -42,6 +42,11 @@ dotnet run --project src/AiOralExam.Api --launch-profile http
 
 Check that the API can reach the database: open http://localhost:5080/health. It should say `Healthy`.
 
+For an existing database, apply the role/code validation upgrade with
+`psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f database/03_user_role_code_constraint.sql`.
+The script reports any existing users that need correction before it installs the trigger.
+Fresh databases get this trigger automatically from `database/01_schema.sql`.
+
 In Visual Studio: open `AiOralExam.sln`, set `AiOralExam.Api` as the startup project, pick the **http** profile and press F5.
 
 ### Try the M1 exam flow in Swagger
