@@ -26,6 +26,7 @@ public class UserCreationTests
 
         var savedUser = await db.Users.SingleAsync();
         Assert.Equal(KeycloakUserId, result.Id);
+        Assert.Equal("han.hg", result.Username);
         Assert.True(result.SetupEmailSent);
         Assert.Equal(KeycloakUserId, savedUser.Id);
         Assert.Equal("han.hg", savedUser.Username);
@@ -48,6 +49,30 @@ public class UserCreationTests
         Assert.False(result.SetupEmailSent);
         Assert.Single(await db.Users.ToListAsync());
         Assert.Single(await db.AuditLogs.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Get_user_derives_username_from_email_local_part()
+    {
+        await using var db = await CreateDatabaseAsync();
+        var role = await db.Roles.SingleAsync();
+        var userId = Guid.NewGuid();
+        db.Users.Add(new User
+        {
+            Id = userId,
+            RoleId = role.Id,
+            Role = role,
+            FullName = "Sample User",
+            Email = "Sample.User@example.test",
+            Username = "different-stored-value",
+            IsActive = true
+        });
+        await db.SaveChangesAsync();
+        var service = CreateService(db, new FakeKeycloakAdminClient());
+
+        var result = await service.GetAsync(userId, CancellationToken.None);
+
+        Assert.Equal("sample.user", result.Username);
     }
 
     [Fact]

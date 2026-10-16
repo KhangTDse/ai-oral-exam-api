@@ -18,6 +18,7 @@ public sealed record UserDto(
     Guid Id,
     string? FullName,
     string? Email,
+    string Username,
     string Role,
     string? StudentCode,
     string? LecturerCode,
@@ -27,6 +28,7 @@ public sealed record CreatedUserDto(
     Guid Id,
     string? FullName,
     string? Email,
+    string Username,
     string Role,
     string? StudentCode,
     string? LecturerCode,
@@ -70,6 +72,9 @@ internal sealed class UserService(
     ILogger<UserService> logger) : IUserService
 {
     private const long AdministratorUpdateAdvisoryLock = 0x4149564553555345;
+
+    static string UsernameFromEmail(string email)
+        => email[..email.IndexOf('@')].ToLowerInvariant();
 
     static string? Clean(string? x)
         => string.IsNullOrWhiteSpace(x) ? null : x.Trim();
@@ -170,6 +175,7 @@ internal sealed class UserService(
         u.Id,
         u.FullName,
         u.Email,
+        UsernameFromEmail(u.Email),
         u.Role.Name,
         u.StudentCode,
         u.LecturerCode,
@@ -215,7 +221,7 @@ internal sealed class UserService(
                 ["email"] = ["A valid email address is required."]
             });
 
-        var username = email[..email.IndexOf('@')];
+        var username = UsernameFromEmail(email);
         if (username.Length > 50)
             throw new ValidationException(new Dictionary<string, string[]>
             {
@@ -287,7 +293,7 @@ internal sealed class UserService(
         }
 
         var setupEmailSent = await keycloak.SendSetPasswordEmailAsync(keycloakId, ct);
-        return new CreatedUserDto(u.Id, u.FullName, u.Email, u.Role.Name,
+        return new CreatedUserDto(u.Id, u.FullName, u.Email, UsernameFromEmail(u.Email), u.Role.Name,
             u.StudentCode, u.LecturerCode, u.IsActive, setupEmailSent);
     }
 

@@ -174,6 +174,18 @@ Every error uses the same format (FOUNDATION-02):
 
 The FE should `switch` on `code`; `message` is meant for display.
 
+### Username rule
+
+An admin user's username is the email local part, lowercased. Users with the same local part on different domains (for example, `a@x.com` and `a@y.com`) collide; the second create fails with `409 username_exists`. A final rule is pending a team decision.
+
+### GET `/api/auth/me` without a database user row
+
+A valid Keycloak token alone is not enough; the user must have an active AIVES database row, created through the admin API. In the current HTTP pipeline, a missing or inactive row is rejected during token validation with `403 account_inactive` before `/api/auth/me` reaches its profile lookup. The profile service itself reports `404 user_not_found` if called for an unknown ID, but that is not the current endpoint response for a missing row.
+
+### Source of truth for roles and active status
+
+The AIVES database is the source of truth for authorization: its role replaces the token role, and an inactive or missing user row is denied by the API. Changing a user's role or deactivating them in AIVES does not currently update the Keycloak account. Admin user creation also provisions the Keycloak identity and assigns its initial realm role; Keycloak handles authentication and password setup, but subsequent role and active-status changes remain database-only.
+
 ### Attempt states (BE-AI-01)
 
 ```
@@ -242,7 +254,7 @@ or score-approval endpoint are needed for these seeded examples.
 | `Interview:TimeLimitGraceSeconds` | 15 | grace period after the time limit |
 | `Cors:AllowedOrigins` | `http://localhost:5173`, `http://localhost:3000` | where the FE runs |
 
-User creation in the API stores the AIVES profile only. The corresponding Keycloak account must already exist, and its UUID and username must be supplied; this API does not provision users in Keycloak.
+Admin user creation provisions the Keycloak identity and assigns its initial realm role, then stores the AIVES profile. The username is derived from the email local part (see [Username rule](#username-rule)).
 
 To override settings on your machine without committing them, use `dotnet user-secrets` (the project already has a `UserSecretsId`) or environment variables, e.g. `ConnectionStrings__Database=...`.
 
