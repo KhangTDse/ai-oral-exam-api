@@ -92,10 +92,8 @@ internal sealed class AiConfigService(AccessConfigDbContext db, ICurrentUser me,
         x.UpdatedAt = DateTime.UtcNow;
         try
         {
-            await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            CourseService.AddAudit(db, me.Id, id is null ? "Create" : "Update", "AiServiceConfig", x.Id);
             await db.SaveChangesAsync(ct);
-            await CourseService.Audit(db, me.Id, id is null ? "Create" : "Update", "AiServiceConfig", x.Id, ct);
-            await transaction.CommitAsync(ct);
         }
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException
         {
@@ -153,10 +151,8 @@ internal sealed class AiConfigService(AccessConfigDbContext db, ICurrentUser me,
     {
         var x = await db.AiServiceConfigs.FindAsync([id], ct) ??
             throw new NotFoundException("ai_config_not_found", "AI service configuration not found.");
-        await using var transaction = await db.Database.BeginTransactionAsync(ct);
         db.AiServiceConfigs.Remove(x);
+        CourseService.AddAudit(db, me.Id, "Delete", "AiServiceConfig", id);
         await db.SaveChangesAsync(ct);
-        await CourseService.Audit(db, me.Id, "Delete", "AiServiceConfig", id, ct);
-        await transaction.CommitAsync(ct);
     }
 }

@@ -3,11 +3,13 @@ using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using AiOralExam.Modules.AccessConfig.Application.Courses;
+using AiOralExam.Modules.AccessConfig.Application.Keycloak;
 using AiOralExam.Modules.AccessConfig.Domain;
 using AiOralExam.Modules.AccessConfig.Infrastructure;
 using AiOralExam.SharedKernel.Errors;
 using AiOralExam.SharedKernel.Security;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Npgsql;
 using ValidationException = AiOralExam.SharedKernel.Errors.ValidationException;
 
@@ -22,11 +24,10 @@ public sealed record UserDto(
     bool IsActive);
 
 public sealed record CreateUserRequest(
-    Guid Id,
-    [Required, StringLength(50)] string Username,
-    [Required] string FullName,
-    [EmailAddress, Required] string Email,
-    UserRole Role, string? StudentCode,
+    [Required, StringLength(150)] string FullName,
+    [EmailAddress, Required, StringLength(255)] string Email,
+    [EnumDataType(typeof(UserRole))] UserRole Role,
+    string? StudentCode,
     string? LecturerCode);
 
 public sealed record UpdateUserRequest(
@@ -53,8 +54,12 @@ public interface IUserService
 internal sealed class UserService(
     AccessConfigDbContext db,
     ICurrentUser me,
-    TimeProvider timeProvider) : IUserService
+    TimeProvider timeProvider,
+    IKeycloakAdminClient keycloak,
+    ILogger<UserService> logger) : IUserService
 {
+    private const long AdministratorUpdateAdvisoryLock = 0x4149564553555345;
+
     static string? Clean(string? x)
         => string.IsNullOrWhiteSpace(x) ? null : x.Trim();
 
@@ -115,6 +120,40 @@ internal sealed class UserService(
         u.IsActive = values.IsActive;
     }
 
+    internal static bool IsSelfModification(
+        Guid targetId, Guid currentUserId, UserRole currentRole, bool isActive, UpdateUserRequest request)
+        => targetId == currentUserId
+           && ((request.Role is UserRole requestedRole && requestedRole != currentRole)
+               || (isActive && !request.IsActive));
+
+    internal static bool RequiresAdministratorUpdateLock(
+        UserRole currentRole, bool isActive, UpdateUserRequest request)
+    {
+        var requestedRole = request.Role ?? currentRole;
+        return currentRole == UserRole.Administrator && isActive
+            && (requestedRole != UserRole.Administrator || !request.IsActive);
+    }
+
+    internal static bool HasOtherActiveAdministrator(Guid targetId, IEnumerable<User> administrators)
+        => administrators.Any(x => x.Id != targetId && x.IsActive
+            && x.Role.Name == UserRole.Administrator.ToString());
+
+    internal static string? GetUpdateConflictCode(
+        Guid targetId,
+        Guid currentUserId,
+        UserRole currentRole,
+        bool isActive,
+        UpdateUserRequest request,
+        IEnumerable<User> administrators)
+    {
+        if (IsSelfModification(targetId, currentUserId, currentRole, isActive, request))
+            return "cannot_modify_self";
+        if (RequiresAdministratorUpdateLock(currentRole, isActive, request)
+            && !HasOtherActiveAdministrator(targetId, administrators))
+            return "last_administrator";
+        return null;
+    }
+
     static UserDto D(User u)
         => new(
         u.Id,
@@ -151,27 +190,32 @@ internal sealed class UserService(
 
     public async Task<UserDto> CreateAsync(CreateUserRequest r, CancellationToken ct)
     {
-        if (r.Id == Guid.Empty)
+        if (string.IsNullOrWhiteSpace(r.FullName))
             throw new ValidationException(new Dictionary<string, string[]>
             {
-                ["id"] = ["A Keycloak user ID is required."]
+                ["fullName"] = ["A full name is required."]
             });
 
-        var username = r.Username.Trim();
-        if (username.Length == 0)
+        var fullName = r.FullName.Trim();
+        var email = r.Email?.Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(email) || !new EmailAddressAttribute().IsValid(email))
             throw new ValidationException(new Dictionary<string, string[]>
             {
-                ["username"] = ["A Keycloak username is required."]
+                ["email"] = ["A valid email address is required."]
             });
 
-        var email = r.Email.Trim().ToLowerInvariant();
+        var username = email[..email.IndexOf('@')];
+        if (username.Length > 50)
+            throw new ValidationException(new Dictionary<string, string[]>
+            {
+                ["email"] = ["The email local part must not exceed 50 characters."]
+            });
+
         var s = Clean(r.StudentCode);
         var l = Clean(r.LecturerCode);
         ValidateCodes(r.Role, s, l);
         if (await db.Users.AnyAsync(x => x.Email.ToLower() == email, ct))
             throw new ConflictException("email_exists", "Email is already in use.");
-        if (await db.Users.AnyAsync(x => x.Id == r.Id, ct))
-            throw new ConflictException("user_id_exists", "Keycloak user ID is already in use.");
         if (await db.Users.AnyAsync(x => x.Username == username, ct))
             throw new ConflictException("username_exists", "Username is already in use.");
         var role = await db.Roles.FirstOrDefaultAsync(x => x.Name == r.Role.ToString(), ct) ??
@@ -183,11 +227,16 @@ internal sealed class UserService(
             throw new ConflictException("student_code_exists", "Student code is already in use.");
         if (l is not null && await db.Users.AnyAsync(x => x.LecturerCode == l, ct))
             throw new ConflictException("lecturer_code_exists", "Lecturer code is already in use.");
+
+        var nameParts = fullName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var firstName = nameParts.Length == 1 ? nameParts[0] : string.Join(' ', nameParts[..^1]);
+        var lastName = nameParts.Length == 1 ? string.Empty : nameParts[^1];
+        var keycloakId = await keycloak.CreateUserAsync(username, email, firstName, lastName, ct);
         var u = new User
         {
-            Id = r.Id,
+            Id = keycloakId,
             Username = username,
-            FullName = r.FullName.Trim(),
+            FullName = fullName,
             Email = email,
             RoleId = role.Id,
             Role = role,
@@ -198,19 +247,41 @@ internal sealed class UserService(
         };
         try
         {
-            await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            await keycloak.AssignRealmRoleAsync(keycloakId, r.Role.ToString(), ct);
             db.Users.Add(u);
+            CourseService.AddAudit(db, me.Id, "Create", "User", u.Id);
             await db.SaveChangesAsync(ct);
-            await CourseService.Audit(db, me.Id, "Create", "User", u.Id, ct);
-            await transaction.CommitAsync(ct);
         }
-        catch (DbUpdateException ex) when (ex.InnerException is PostgresException
+        catch (Exception ex)
         {
-            SqlState: PostgresErrorCodes.UniqueViolation,
-            ConstraintName: "ux_users_email"
-        })
+            try
+            {
+                await keycloak.DeleteUserAsync(keycloakId, CancellationToken.None);
+            }
+            catch (Exception deleteException)
+            {
+                logger.LogWarning(deleteException, "Could not remove Keycloak user {UserId} after user creation failed.", keycloakId);
+            }
+
+            if (ex is DbUpdateException
+                {
+                    InnerException: PostgresException
+                    {
+                        SqlState: PostgresErrorCodes.UniqueViolation,
+                        ConstraintName: "ux_users_email"
+                    }
+                })
+                throw new ConflictException("email_exists", "Email is already in use.");
+            throw;
+        }
+
+        try
         {
-            throw new ConflictException("email_exists", "Email is already in use.");
+            await keycloak.SendSetPasswordEmailAsync(keycloakId, ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Could not send a password setup email for Keycloak user {UserId}.", keycloakId);
         }
         return D(u);
     }
@@ -220,7 +291,43 @@ internal sealed class UserService(
         var u = await db.Users.Include(x => x.Role)
             .FirstOrDefaultAsync(x => x.Id == id, ct) ??
             throw new NotFoundException("user_not_found", "User not found.");
+        var currentRole = Enum.Parse<UserRole>(u.Role.Name);
+        if (IsSelfModification(id, me.Id, currentRole, u.IsActive, r))
+            throw new ConflictException("cannot_modify_self", "You cannot change your own role or deactivate your account.");
+
         var values = PrepareUpdate(u, r);
+        var requiresAdministratorLock = RequiresAdministratorUpdateLock(currentRole, u.IsActive, r);
+        await using var transaction = requiresAdministratorLock
+            ? await db.Database.BeginTransactionAsync(ct)
+            : null;
+        if (transaction is not null)
+        {
+            await db.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT pg_advisory_xact_lock({AdministratorUpdateAdvisoryLock})", ct);
+
+            await db.Entry(u).ReloadAsync(ct);
+            if (db.Entry(u).State == EntityState.Detached)
+                throw new NotFoundException("user_not_found", "User not found.");
+            db.Entry(u).Reference(x => x.Role).IsLoaded = false;
+            await db.Entry(u).Reference(x => x.Role).LoadAsync(ct);
+
+            currentRole = Enum.Parse<UserRole>(u.Role.Name);
+            if (IsSelfModification(id, me.Id, currentRole, u.IsActive, r))
+                throw new ConflictException("cannot_modify_self", "You cannot change your own role or deactivate your account.");
+            values = PrepareUpdate(u, r);
+
+            if (RequiresAdministratorUpdateLock(currentRole, u.IsActive, r))
+            {
+                var administrators = await db.Users.Include(x => x.Role)
+                    .Where(x => x.Role.Name == UserRole.Administrator.ToString())
+                    .ToListAsync(ct);
+                var conflictCode = GetUpdateConflictCode(
+                    id, me.Id, currentRole, u.IsActive, r, administrators);
+                if (conflictCode == "last_administrator")
+                    throw new ConflictException("last_administrator", "At least one other active administrator must remain.");
+            }
+        }
+
         if (values.StudentCode is not null && await db.Users.AnyAsync(x => x.StudentCode == values.StudentCode && x.Id != id, ct))
             throw new ConflictException("student_code_exists", "Student code is already in use.");
         if (values.LecturerCode is not null && await db.Users.AnyAsync(x => x.LecturerCode == values.LecturerCode && x.Id != id, ct))
@@ -233,8 +340,10 @@ internal sealed class UserService(
                     ["role"] = ["The requested role is not configured."]
                 });
         ApplyUpdate(u, values, role);
+        CourseService.AddAudit(db, me.Id, "Update", "User", id);
         await db.SaveChangesAsync(ct);
-        await CourseService.Audit(db, me.Id, "Update", "User", id, ct);
+        if (transaction is not null)
+            await transaction.CommitAsync(ct);
         return D(u);
     }
 

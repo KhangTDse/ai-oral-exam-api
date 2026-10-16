@@ -11,6 +11,23 @@ namespace AiOralExam.UnitTests;
 public class QuestionImportTests
 {
     [Fact]
+    public async Task Create_persists_one_audit_row_with_the_question()
+    {
+        await using var db = CreateDbContext();
+        var (sessionId, lecturer) = await AddSessionAsync(db);
+        var service = new QuestionService(db, new TestCurrentUser(lecturer.Id));
+
+        var question = await service.CreateAsync(sessionId,
+            new CreateQuestionRequest(1, "Question"), CancellationToken.None);
+
+        var audit = Assert.Single(db.AuditLogs);
+        Assert.Equal(lecturer.Id, audit.UserId);
+        Assert.Equal("Create", audit.Action);
+        Assert.Equal("Question", audit.TargetEntity);
+        Assert.Equal(question.Id, audit.TargetId);
+    }
+
+    [Fact]
     public async Task Import_saves_all_questions_and_audits_each_question()
     {
         await using var db = CreateDbContext();

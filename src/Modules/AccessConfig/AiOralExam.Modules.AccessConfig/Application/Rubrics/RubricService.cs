@@ -124,9 +124,9 @@ internal sealed class RubricService(AccessConfigDbContext db, ICurrentUser me) :
             criterion.MaxPoints = item.MaxPoints;
         }
 
+        CourseService.AddAudit(db, me.Id, "Save", "Rubric", rubric.Id);
         await db.SaveChangesAsync(ct);
         await db.Entry(rubric).ReloadAsync(ct);
-        await CourseService.Audit(db, me.Id, "Save", "Rubric", rubric.Id, ct);
         await transaction.CommitAsync(ct);
         return ToDto(rubric);
     }
@@ -144,8 +144,8 @@ internal sealed class RubricService(AccessConfigDbContext db, ICurrentUser me) :
             .FirstOrDefaultAsync(ct)
             ?? throw new NotFoundException("rubric_not_found", "Rubric not found.");
         db.Rubrics.Remove(r);
+        CourseService.AddAudit(db, me.Id, "Delete", "Rubric", r.Id);
         await db.SaveChangesAsync(ct);
-        await CourseService.Audit(db, me.Id, "Delete", "Rubric", r.Id, ct);
     }
 
     private static void Validate(SaveRubricRequest request)

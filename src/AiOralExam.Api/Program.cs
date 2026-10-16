@@ -28,7 +28,7 @@ builder.Services.AddScoped<ICurrentUser, CurrentUser>();
 // ---------------------------------------------------------------- Modules
 // Each module registers its own DbContext + services. Modules talk to each other only through *.Contracts.
 builder.Services
-    .AddAccessConfigModule(connectionString)
+    .AddAccessConfigModule(connectionString, config)
     .AddInterviewModule(connectionString, config)
     .AddReportingModule();
 

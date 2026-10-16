@@ -97,8 +97,8 @@ internal sealed class ExamSessionCommands(AccessConfigDbContext db, ICurrentUser
             CreatedAt = DateTime.UtcNow
         };
         db.ExamSessions.Add(s);
+        CourseService.AddAudit(db, me.Id, "Create", "ExamSession", s.Id);
         await db.SaveChangesAsync(ct);
-        await CourseService.Audit(db, me.Id, "Create", "ExamSession", s.Id, ct);
         return D(s, 0);
     }
     public async Task<ExamSessionCommandDto> UpdateAsync(Guid id, UpdateExamSessionRequest r, CancellationToken ct)
@@ -119,8 +119,8 @@ internal sealed class ExamSessionCommands(AccessConfigDbContext db, ICurrentUser
         s.StartTime = start; s.EndTime = end;
         s.TimeLimitPerAnswerSeconds = r.TimeLimitPerAnswerSeconds;
         s.MaxFollowUps = r.MaxFollowUps;
+        CourseService.AddAudit(db, me.Id, "Update", "ExamSession", id);
         await db.SaveChangesAsync(ct);
-        await CourseService.Audit(db, me.Id, "Update", "ExamSession", id, ct);
         return D(s, await db.Participants.CountAsync(x => x.ExamSessionId == id, ct));
     }
     public async Task DeleteAsync(Guid id, CancellationToken ct)
@@ -129,8 +129,8 @@ internal sealed class ExamSessionCommands(AccessConfigDbContext db, ICurrentUser
         if (s.Status != ExamSessionStatus.Draft)
             throw new ConflictException("exam_session_locked", "Only draft exam sessions can be deleted.");
         db.ExamSessions.Remove(s);
+        CourseService.AddAudit(db, me.Id, "Delete", "ExamSession", id);
         await db.SaveChangesAsync(ct);
-        await CourseService.Audit(db, me.Id, "Delete", "ExamSession", id, ct);
     }
 
     public async Task<ExamSessionCommandDto> PublishAsync(Guid id, CancellationToken ct)
@@ -167,8 +167,8 @@ internal sealed class ExamSessionCommands(AccessConfigDbContext db, ICurrentUser
                 }
             });
         s.Status = ExamSessionStatus.Published;
+        CourseService.AddAudit(db, me.Id, "Publish", "ExamSession", id);
         await db.SaveChangesAsync(ct);
-        await CourseService.Audit(db, me.Id, "Publish", "ExamSession", id, ct);
         return D(s, count);
     }
     public async Task<ExamSessionCommandDto> CloseAsync(Guid id, CancellationToken ct)
@@ -177,8 +177,8 @@ internal sealed class ExamSessionCommands(AccessConfigDbContext db, ICurrentUser
         if (s.Status != ExamSessionStatus.Published)
             throw new ConflictException("exam_session_not_published", "Only published exam sessions can be closed.");
         s.Status = ExamSessionStatus.Closed;
+        CourseService.AddAudit(db, me.Id, "Close", "ExamSession", id);
         await db.SaveChangesAsync(ct);
-        await CourseService.Audit(db, me.Id, "Close", "ExamSession", id, ct);
         return D(s, await db.Participants.CountAsync(x => x.ExamSessionId == id, ct));
     }
 }

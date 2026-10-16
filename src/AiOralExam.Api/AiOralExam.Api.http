@@ -27,3 +27,16 @@ Content-Type: application/json
 
 ### Health check
 GET {{host}}/health
+
+### Create a user (administrator)
+POST {{host}}/api/admin/users
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "fullName": "Han Hoang Giang",
+  "email": "new.student@aives.edu.vn",
+  "role": "Student",
+  "studentCode": "SE180099",
+  "lecturerCode": null
+}

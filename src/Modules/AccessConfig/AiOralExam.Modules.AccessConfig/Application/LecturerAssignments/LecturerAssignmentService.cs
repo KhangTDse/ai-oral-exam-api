@@ -70,14 +70,9 @@ internal sealed class LecturerAssignmentService(AccessConfigDbContext db, ICurre
             LecturerId = lecturerId,
             AssignedAt = DateTime.UtcNow
         };
-        await using var transaction = db.Database.CurrentTransaction is null
-            ? await db.Database.BeginTransactionAsync(ct)
-            : null;
         db.CourseLecturers.Add(x);
+        CourseService.AddAudit(db, me.Id, "AssignLecturer", "Course", courseId);
         await db.SaveChangesAsync(ct);
-        await CourseService.Audit(db, me.Id, "AssignLecturer", "Course", courseId, ct);
-        if (transaction is not null)
-            await transaction.CommitAsync(ct);
         return new(u.Id, u.FullName, u.Email, u.LecturerCode, x.AssignedAt);
     }
 
@@ -85,13 +80,8 @@ internal sealed class LecturerAssignmentService(AccessConfigDbContext db, ICurre
     {
         var x = await db.CourseLecturers.FirstOrDefaultAsync(x => x.CourseId == courseId && x.LecturerId == lecturerId, ct) ??
             throw new NotFoundException("assignment_not_found", "Lecturer assignment not found.");
-        await using var transaction = db.Database.CurrentTransaction is null
-            ? await db.Database.BeginTransactionAsync(ct)
-            : null;
         db.CourseLecturers.Remove(x);
+        CourseService.AddAudit(db, me.Id, "RemoveLecturer", "Course", courseId);
         await db.SaveChangesAsync(ct);
-        await CourseService.Audit(db, me.Id, "RemoveLecturer", "Course", courseId, ct);
-        if (transaction is not null)
-            await transaction.CommitAsync(ct);
     }
 }

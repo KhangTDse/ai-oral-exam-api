@@ -49,9 +49,9 @@ internal sealed class CourseService(
         await lecturerAssignments.ValidateLecturerAsync(r.LecturerId, ct);
         var c = new Course { Id = Guid.NewGuid(), Code = code, Name = r.Name.Trim() };
         db.Courses.Add(c);
+        AddAudit(db, me.Id, "Create", "Course", c.Id);
         await db.SaveChangesAsync(ct);
         await lecturerAssignments.AssignAsync(c.Id, r.LecturerId, ct);
-        await Audit(db, me.Id, "Create", "Course", c.Id, ct);
         await transaction.CommitAsync(ct);
         return await GetAsync(c.Id, ct);
     }
@@ -61,13 +61,8 @@ internal sealed class CourseService(
         var c = await db.Courses.FindAsync([id], ct) ??
             throw new NotFoundException("course_not_found", "Course not found.");
         c.Name = r.Name.Trim();
-        await using var transaction = db.Database.CurrentTransaction is null
-            ? await db.Database.BeginTransactionAsync(ct)
-            : null;
+        AddAudit(db, me.Id, "Update", "Course", id);
         await db.SaveChangesAsync(ct);
-        await Audit(db, me.Id, "Update", "Course", id, ct);
-        if (transaction is not null)
-            await transaction.CommitAsync(ct);
         return await GetAsync(id, ct);
     }
 
@@ -77,17 +72,13 @@ internal sealed class CourseService(
             throw new NotFoundException("course_not_found", "Course not found.");
         if (await db.ExamSessions.AnyAsync(x => x.CourseId == id, ct))
             throw new ConflictException("course_has_exam_sessions", "This course already has exam sessions.");
-        await using var transaction = db.Database.CurrentTransaction is null
-            ? await db.Database.BeginTransactionAsync(ct)
-            : null;
         db.Courses.Remove(c);
+        AddAudit(db, me.Id, "Delete", "Course", id);
         await db.SaveChangesAsync(ct);
-        await Audit(db, me.Id, "Delete", "Course", id, ct);
-        if (transaction is not null)
-            await transaction.CommitAsync(ct);
     }
 
-    internal static async Task Audit(AccessConfigDbContext db, Guid user, string action, string entity, Guid? id, CancellationToken ct)
+    /// <summary>Adds an audit entry; call this before the action's own SaveChangesAsync.</summary>
+    internal static void AddAudit(AccessConfigDbContext db, Guid user, string action, string entity, Guid? id)
     {
         db.AuditLogs.Add(new AuditLog
         {
@@ -98,6 +89,5 @@ internal sealed class CourseService(
             TargetId = id,
             CreatedAt = DateTime.UtcNow
         });
-        await db.SaveChangesAsync(ct);
     }
 }

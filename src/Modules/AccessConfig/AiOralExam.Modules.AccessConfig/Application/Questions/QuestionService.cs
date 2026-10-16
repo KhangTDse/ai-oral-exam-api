@@ -81,8 +81,8 @@ internal sealed class QuestionService(AccessConfigDbContext db, ICurrentUser me)
             Content = r.Content.Trim()
         };
         db.Questions.Add(q);
+        CourseService.AddAudit(db, me.Id, "Create", "Question", q.Id);
         await db.SaveChangesAsync(ct);
-        await CourseService.Audit(db, me.Id, "Create", "Question", q.Id, ct);
         return new(q.Id, q.OrderNo, q.Content, false);
     }
 
@@ -136,9 +136,6 @@ internal sealed class QuestionService(AccessConfigDbContext db, ICurrentUser me)
         if (errors.Count > 0)
             throw new ValidationException(errors);
 
-        await using var transaction = db.Database.CurrentTransaction is null
-            ? await db.Database.BeginTransactionAsync(ct)
-            : null;
         var imported = questions.Select(item => new Question
         {
             Id = Guid.NewGuid(),
@@ -147,11 +144,9 @@ internal sealed class QuestionService(AccessConfigDbContext db, ICurrentUser me)
             Content = item.Content.Trim()
         }).ToList();
         db.Questions.AddRange(imported);
-        await db.SaveChangesAsync(ct);
         foreach (var question in imported)
-            await CourseService.Audit(db, me.Id, "Create", "Question", question.Id, ct);
-        if (transaction is not null)
-            await transaction.CommitAsync(ct);
+            CourseService.AddAudit(db, me.Id, "Create", "Question", question.Id);
+        await db.SaveChangesAsync(ct);
 
         return imported.Select(x => new QuestionDto(x.Id, x.OrderNo, x.Content, false)).ToList();
     }
@@ -165,8 +160,8 @@ internal sealed class QuestionService(AccessConfigDbContext db, ICurrentUser me)
             throw new ConflictException("question_order_exists", "Question order number already exists.");
         q.OrderNo = r.OrderNo;
         q.Content = r.Content.Trim();
+        CourseService.AddAudit(db, me.Id, "Update", "Question", id);
         await db.SaveChangesAsync(ct);
-        await CourseService.Audit(db, me.Id, "Update", "Question", id, ct);
         return new(q.Id, q.OrderNo, q.Content, q.Rubric != null);
     }
 
@@ -176,8 +171,8 @@ internal sealed class QuestionService(AccessConfigDbContext db, ICurrentUser me)
         var q = await db.Questions.FirstOrDefaultAsync(x => x.Id == id && x.ExamSessionId == sid, ct) ??
             throw new NotFoundException("question_not_found", "Question not found.");
         db.Questions.Remove(q);
+        CourseService.AddAudit(db, me.Id, "Delete", "Question", id);
         await db.SaveChangesAsync(ct);
-        await CourseService.Audit(db, me.Id, "Delete", "Question", id, ct);
     }
 
     async Task Access(Guid sid, CancellationToken ct)

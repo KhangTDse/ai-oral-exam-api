@@ -63,6 +63,8 @@ public class UserUpdateTests
         var user = ExistingUser(UserRole.Student, "S001", null);
         var request = new UpdateUserRequest("  Updated User  ", " S002 ", null, false);
 
+        Assert.Null(UpdateConflictCode(user, Guid.NewGuid(), request));
+
         var values = UserService.PrepareUpdate(user, request);
         UserService.ApplyUpdate(user, values, RoleFor(values.Role));
 
@@ -71,6 +73,63 @@ public class UserUpdateTests
         Assert.Equal("S002", user.StudentCode);
         Assert.Null(user.LecturerCode);
         Assert.False(user.IsActive);
+    }
+
+    [Fact]
+    public void Administrator_cannot_change_their_own_role()
+    {
+        var user = ExistingUser(UserRole.Administrator, null, null);
+        var request = new UpdateUserRequest("Admin", null, "L001", true, UserRole.Lecturer);
+
+        Assert.Equal("cannot_modify_self", UpdateConflictCode(user, user.Id, request));
+    }
+
+    [Fact]
+    public void Administrator_cannot_deactivate_themselves()
+    {
+        var user = ExistingUser(UserRole.Administrator, null, null);
+        var request = new UpdateUserRequest("Admin", null, null, false);
+
+        Assert.Equal("cannot_modify_self", UpdateConflictCode(user, user.Id, request));
+    }
+
+    [Fact]
+    public void Last_active_administrator_cannot_be_demoted()
+    {
+        var user = ExistingUser(UserRole.Administrator, null, null);
+        var request = new UpdateUserRequest("Admin", null, "L001", true, UserRole.Lecturer);
+
+        Assert.Equal("last_administrator", UpdateConflictCode(user, Guid.NewGuid(), request));
+    }
+
+    [Fact]
+    public void Last_active_administrator_cannot_be_deactivated()
+    {
+        var user = ExistingUser(UserRole.Administrator, null, null);
+        var request = new UpdateUserRequest("Admin", null, null, false);
+
+        Assert.Equal("last_administrator", UpdateConflictCode(user, Guid.NewGuid(), request));
+    }
+
+    [Fact]
+    public void Administrator_can_be_demoted_when_another_active_administrator_exists()
+    {
+        var user = ExistingUser(UserRole.Administrator, null, null);
+        var otherAdmin = ExistingUser(UserRole.Administrator, null, null);
+        var request = new UpdateUserRequest("Admin", null, "L001", true, UserRole.Lecturer);
+
+        Assert.Null(UpdateConflictCode(user, Guid.NewGuid(), request, otherAdmin));
+    }
+
+    [Fact]
+    public void Inactive_administrator_does_not_count_as_another_administrator()
+    {
+        var user = ExistingUser(UserRole.Administrator, null, null);
+        var inactiveAdmin = ExistingUser(UserRole.Administrator, null, null);
+        inactiveAdmin.IsActive = false;
+        var request = new UpdateUserRequest("Admin", null, "L001", true, UserRole.Lecturer);
+
+        Assert.Equal("last_administrator", UpdateConflictCode(user, Guid.NewGuid(), request, inactiveAdmin));
     }
 
     [Fact]
@@ -107,6 +166,16 @@ public class UserUpdateTests
     }
 
     private static Role RoleFor(UserRole role) => new() { Id = Guid.NewGuid(), Name = role.ToString() };
+
+    private static string? UpdateConflictCode(
+        User user, Guid currentUserId, UpdateUserRequest request, params User[] administrators)
+        => UserService.GetUpdateConflictCode(
+            user.Id,
+            currentUserId,
+            Enum.Parse<UserRole>(user.Role.Name),
+            user.IsActive,
+            request,
+            administrators);
 
     private static User ExistingUser(UserRole role, string? studentCode, string? lecturerCode)
     {
