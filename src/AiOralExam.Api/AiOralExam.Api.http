@@ -40,3 +40,7 @@ Content-Type: application/json
   "studentCode": "SE180099",
   "lecturerCode": null
 }
+
+### Resend a user's password setup email (administrator; replace USER_ID)
+POST {{host}}/api/admin/users/USER_ID/setup-link
+Authorization: Bearer {{token}}

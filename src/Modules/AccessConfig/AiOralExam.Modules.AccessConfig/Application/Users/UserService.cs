@@ -23,6 +23,16 @@ public sealed record UserDto(
     string? LecturerCode,
     bool IsActive);
 
+public sealed record CreatedUserDto(
+    Guid Id,
+    string? FullName,
+    string? Email,
+    string Role,
+    string? StudentCode,
+    string? LecturerCode,
+    bool IsActive,
+    bool SetupEmailSent);
+
 public sealed record CreateUserRequest(
     [Required, StringLength(150)] string FullName,
     [EmailAddress, Required, StringLength(255)] string Email,
@@ -48,8 +58,9 @@ public interface IUserService
 {
     Task<IReadOnlyList<UserDto>> ListAsync(UserRole? role, bool? active, string? search, CancellationToken ct);
     Task<UserDto> GetAsync(Guid id, CancellationToken ct);
-    Task<UserDto> CreateAsync(CreateUserRequest r, CancellationToken ct);
+    Task<CreatedUserDto> CreateAsync(CreateUserRequest r, CancellationToken ct);
     Task<UserDto> UpdateAsync(Guid id, UpdateUserRequest r, CancellationToken ct);
+    Task ResendSetupEmailAsync(Guid id, Guid actorId, CancellationToken ct);
 }
 internal sealed class UserService(
     AccessConfigDbContext db,
@@ -188,7 +199,7 @@ internal sealed class UserService(
             .FirstOrDefaultAsync(x => x.Id == id, ct) ??
             throw new NotFoundException("user_not_found", "User not found."));
 
-    public async Task<UserDto> CreateAsync(CreateUserRequest r, CancellationToken ct)
+    public async Task<CreatedUserDto> CreateAsync(CreateUserRequest r, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(r.FullName))
             throw new ValidationException(new Dictionary<string, string[]>
@@ -275,15 +286,9 @@ internal sealed class UserService(
             throw;
         }
 
-        try
-        {
-            await keycloak.SendSetPasswordEmailAsync(keycloakId, ct);
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Could not send a password setup email for Keycloak user {UserId}.", keycloakId);
-        }
-        return D(u);
+        var setupEmailSent = await keycloak.SendSetPasswordEmailAsync(keycloakId, ct);
+        return new CreatedUserDto(u.Id, u.FullName, u.Email, u.Role.Name,
+            u.StudentCode, u.LecturerCode, u.IsActive, setupEmailSent);
     }
 
     public async Task<UserDto> UpdateAsync(Guid id, UpdateUserRequest r, CancellationToken ct)
@@ -345,6 +350,17 @@ internal sealed class UserService(
         if (transaction is not null)
             await transaction.CommitAsync(ct);
         return D(u);
+    }
+
+    public async Task ResendSetupEmailAsync(Guid id, Guid actorId, CancellationToken ct)
+    {
+        var user = await db.Users.FirstOrDefaultAsync(x => x.Id == id, ct) ??
+            throw new NotFoundException("user_not_found", "User not found.");
+        if (!await keycloak.SendSetPasswordEmailAsync(user.Id, ct))
+            throw new AppException(502, "setup_email_failed", "Keycloak could not send the password setup email.");
+
+        CourseService.AddAudit(db, actorId, "ResendSetupEmail", "User", id);
+        await db.SaveChangesAsync(ct);
     }
 
 }

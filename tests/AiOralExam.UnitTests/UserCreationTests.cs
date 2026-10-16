@@ -26,6 +26,7 @@ public class UserCreationTests
 
         var savedUser = await db.Users.SingleAsync();
         Assert.Equal(KeycloakUserId, result.Id);
+        Assert.True(result.SetupEmailSent);
         Assert.Equal(KeycloakUserId, savedUser.Id);
         Assert.Equal("han.hg", savedUser.Username);
         Assert.Equal("han.hg@aives.edu.vn", savedUser.Email);
@@ -33,6 +34,70 @@ public class UserCreationTests
         Assert.Equal(
             ["create:han.hg", "assign:Administrator", "email"],
             keycloak.Calls);
+    }
+
+    [Fact]
+    public async Task Create_reports_failed_setup_email_without_rolling_back_user()
+    {
+        await using var db = await CreateDatabaseAsync();
+        var keycloak = new FakeKeycloakAdminClient { EmailSent = false };
+        var service = CreateService(db, keycloak);
+
+        var result = await service.CreateAsync(Request(), CancellationToken.None);
+
+        Assert.False(result.SetupEmailSent);
+        Assert.Single(await db.Users.ToListAsync());
+        Assert.Single(await db.AuditLogs.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Resend_setup_email_succeeds_and_writes_one_audit_row()
+    {
+        await using var db = await CreateDatabaseAsync();
+        await AddUserAsync(db);
+        var keycloak = new FakeKeycloakAdminClient();
+        var service = CreateService(db, keycloak);
+
+        await service.ResendSetupEmailAsync(KeycloakUserId, CurrentUserId, CancellationToken.None);
+
+        var audit = Assert.Single(await db.AuditLogs.ToListAsync());
+        Assert.Equal(CurrentUserId, audit.UserId);
+        Assert.Equal("ResendSetupEmail", audit.Action);
+        Assert.Equal("User", audit.TargetEntity);
+        Assert.Equal(KeycloakUserId, audit.TargetId);
+        Assert.Equal(["email"], keycloak.Calls);
+    }
+
+    [Fact]
+    public async Task Resend_setup_email_failure_returns_setup_email_failed_without_audit()
+    {
+        await using var db = await CreateDatabaseAsync();
+        await AddUserAsync(db);
+        var keycloak = new FakeKeycloakAdminClient { EmailSent = false };
+        var service = CreateService(db, keycloak);
+
+        var exception = await Assert.ThrowsAsync<AppException>(() =>
+            service.ResendSetupEmailAsync(KeycloakUserId, CurrentUserId, CancellationToken.None));
+
+        Assert.Equal(502, exception.StatusCode);
+        Assert.Equal("setup_email_failed", exception.Code);
+        Assert.Empty(await db.AuditLogs.ToListAsync());
+        Assert.Equal(["email"], keycloak.Calls);
+    }
+
+    [Fact]
+    public async Task Resend_setup_email_returns_not_found_for_unknown_user()
+    {
+        await using var db = await CreateDatabaseAsync();
+        var keycloak = new FakeKeycloakAdminClient();
+        var service = CreateService(db, keycloak);
+
+        var exception = await Assert.ThrowsAsync<NotFoundException>(() =>
+            service.ResendSetupEmailAsync(KeycloakUserId, CurrentUserId, CancellationToken.None));
+
+        Assert.Equal("user_not_found", exception.Code);
+        Assert.Empty(keycloak.Calls);
+        Assert.Empty(await db.AuditLogs.ToListAsync());
     }
 
     [Fact]
@@ -142,6 +207,22 @@ public class UserCreationTests
     private static UserService CreateService(AccessConfigDbContext db, FakeKeycloakAdminClient keycloak)
         => new(db, new CurrentUser(), TimeProvider.System, keycloak, NullLogger<UserService>.Instance);
 
+    private static async Task AddUserAsync(AccessConfigDbContext db)
+    {
+        var role = await db.Roles.SingleAsync();
+        db.Users.Add(new User
+        {
+            Id = KeycloakUserId,
+            RoleId = role.Id,
+            Role = role,
+            FullName = "Han Hoang Giang",
+            Email = "han.hg@aives.edu.vn",
+            Username = "han.hg",
+            IsActive = true
+        });
+        await db.SaveChangesAsync();
+    }
+
     private static User ExistingUser(string email, string username)
     {
         var role = new Role { Id = Guid.NewGuid(), Name = UserRole.Administrator.ToString() };
@@ -162,6 +243,7 @@ public class UserCreationTests
         public List<string> Calls { get; } = [];
         public Exception? CreateException { get; init; }
         public Exception? AssignException { get; init; }
+        public bool EmailSent { get; init; } = true;
 
         public Task<Guid> CreateUserAsync(
             string username, string email, string firstName, string lastName, CancellationToken ct = default)
@@ -180,10 +262,10 @@ public class UserCreationTests
             return Task.CompletedTask;
         }
 
-        public Task SendSetPasswordEmailAsync(Guid userId, CancellationToken ct = default)
+        public Task<bool> SendSetPasswordEmailAsync(Guid userId, CancellationToken ct = default)
         {
             Calls.Add("email");
-            return Task.CompletedTask;
+            return Task.FromResult(EmailSent);
         }
 
         public Task DeleteUserAsync(Guid userId, CancellationToken ct = default)

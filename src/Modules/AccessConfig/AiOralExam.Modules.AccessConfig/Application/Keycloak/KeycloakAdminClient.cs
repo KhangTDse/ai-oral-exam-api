@@ -23,7 +23,7 @@ public interface IKeycloakAdminClient
 {
     Task<Guid> CreateUserAsync(string username, string email, string firstName, string lastName, CancellationToken ct = default);
     Task AssignRealmRoleAsync(Guid userId, string roleName, CancellationToken ct = default);
-    Task SendSetPasswordEmailAsync(Guid userId, CancellationToken ct = default);
+    Task<bool> SendSetPasswordEmailAsync(Guid userId, CancellationToken ct = default);
     Task DeleteUserAsync(Guid userId, CancellationToken ct = default);
 }
 
@@ -94,7 +94,7 @@ internal sealed class KeycloakAdminClient(
         EnsureSuccess(mappingResponse);
     }
 
-    public async Task SendSetPasswordEmailAsync(Guid userId, CancellationToken ct = default)
+    public async Task<bool> SendSetPasswordEmailAsync(Guid userId, CancellationToken ct = default)
     {
         try
         {
@@ -108,8 +108,12 @@ internal sealed class KeycloakAdminClient(
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
             using var response = await SendAsync(client, request, ct);
             if (!response.IsSuccessStatusCode)
+            {
                 logger.LogWarning("Keycloak password setup email request failed for user {UserId} with status {StatusCode}.",
                     userId, response.StatusCode);
+                return false;
+            }
+            return true;
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -118,6 +122,7 @@ internal sealed class KeycloakAdminClient(
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Could not request a password setup email for Keycloak user {UserId}.", userId);
+            return false;
         }
     }
 

@@ -139,6 +139,34 @@ public class KeycloakAdminClientTests
             "/protocol/openid-connect/token", StringComparison.Ordinal)));
     }
 
+    [Theory]
+    [InlineData(HttpStatusCode.NoContent, true)]
+    [InlineData(HttpStatusCode.BadGateway, false)]
+    public async Task Setup_email_request_reports_keycloak_acceptance(HttpStatusCode statusCode, bool expected)
+    {
+        var handler = new RecordingHandler(request => request.RequestUri!.AbsolutePath.EndsWith(
+            "/protocol/openid-connect/token", StringComparison.Ordinal)
+            ? TokenResponse()
+            : new HttpResponseMessage(statusCode));
+        var client = CreateClient(handler);
+
+        var result = await client.SendSetPasswordEmailAsync(Guid.NewGuid());
+
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public async Task Setup_email_request_throws_when_canceled()
+    {
+        var handler = new RecordingHandler(_ => TokenResponse());
+        var client = CreateClient(handler);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            client.SendSetPasswordEmailAsync(Guid.NewGuid(), cancellation.Token));
+    }
+
     private static KeycloakAdminClient CreateClient(RecordingHandler handler)
     {
         var options = Options.Create(new KeycloakAdminOptions

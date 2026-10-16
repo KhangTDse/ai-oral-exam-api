@@ -17,6 +17,7 @@ public class AdminRouteTests
     {
         AssertRoute(typeof(UsersController), nameof(UsersController.List), "GET", "api/admin/users");
         AssertRoute(typeof(UsersController), nameof(UsersController.Create), "POST", "api/admin/users");
+        AssertRoute(typeof(UsersController), nameof(UsersController.SendSetupLink), "POST", "api/admin/users/{id:guid}/setup-link");
         AssertRoute(typeof(UsersController), nameof(UsersController.ChangeRole), "PATCH", "api/admin/users/{id:guid}/role");
         AssertRoute(typeof(UsersController), nameof(UsersController.Deactivate), "POST", "api/admin/users/{id:guid}/deactivate");
         AssertRoute(typeof(AdminCoursesController), nameof(AdminCoursesController.List), "GET", "api/admin/courses");

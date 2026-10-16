@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using AiOralExam.Modules.AccessConfig.Application.Users;
 using AiOralExam.Modules.AccessConfig.Domain;
@@ -15,7 +13,9 @@ namespace AiOralExam.Modules.AccessConfig.Controllers;
     Route("api/users"),
     Authorize(Roles = Roles.Administrator),
     Tags("Users")]
-public sealed class UsersController(IUserService service) : ControllerBase
+public sealed class UsersController(
+    IUserService service,
+    ICurrentUser me) : ControllerBase
 {
     [HttpGet]
     [HttpGet("~/api/admin/users")]
@@ -28,13 +28,20 @@ public sealed class UsersController(IUserService service) : ControllerBase
 
     [HttpPost]
     [HttpPost("~/api/admin/users")]
-    public async Task<ActionResult<UserDto>> Create(CreateUserRequest r, CancellationToken ct)
+    public async Task<ActionResult<CreatedUserDto>> Create(CreateUserRequest r, CancellationToken ct)
     {
         var x = await service.CreateAsync(r, ct);
         return CreatedAtAction(nameof(Get), new
         {
             id = x.Id
         }, x);
+    }
+
+    [HttpPost("~/api/admin/users/{id:guid}/setup-link")]
+    public async Task<IActionResult> SendSetupLink(Guid id, CancellationToken ct)
+    {
+        await service.ResendSetupEmailAsync(id, me.Id, ct);
+        return Ok(new { setupEmailSent = true });
     }
 
     [HttpPut("{id:guid}")]
