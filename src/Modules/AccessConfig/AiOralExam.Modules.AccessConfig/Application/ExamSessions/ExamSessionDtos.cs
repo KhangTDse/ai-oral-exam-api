@@ -11,7 +11,10 @@ public sealed record ExamSessionSummaryDto(
     int TimeLimitPerAnswerSeconds,
     int MaxFollowUps,
     string Status,
-    int QuestionCount);
+    int QuestionCount,
+    int ParticipantCount,
+    int TakenCount,
+    int ToReviewCount);
 
 public sealed record QuestionDto(
     Guid Id,

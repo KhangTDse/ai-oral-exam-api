@@ -15,5 +15,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\..\Shared\AiOralExam.SharedKernel\AiOralExam.SharedKernel.csproj" />
     <ProjectReference Include="..\AiOralExam.Modules.AccessConfig.Contracts\AiOralExam.Modules.AccessConfig.Contracts.csproj" />
+    <ProjectReference Include="..\..\Interview\AiOralExam.Modules.Interview.Contracts\AiOralExam.Modules.Interview.Contracts.csproj" />
   </ItemGroup>
 </Project>

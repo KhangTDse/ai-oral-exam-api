@@ -13,6 +13,8 @@ public class Feature7RouteTests
     [Fact]
     public void Lecturer_exam_session_routes_use_the_expected_methods_and_templates()
     {
+        AssertRoute(typeof(AuthController), nameof(AuthController.UpdateMe),
+            "PATCH", "api/auth/me");
         AssertRoute(typeof(ExamSessionCommandsController), nameof(ExamSessionCommandsController.Create),
             "POST", "api/exam-sessions");
         AssertRoute(typeof(ExamSessionCommandsController), nameof(ExamSessionCommandsController.Update),

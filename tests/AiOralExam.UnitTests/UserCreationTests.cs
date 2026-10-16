@@ -76,6 +76,50 @@ public class UserCreationTests
     }
 
     [Fact]
+    public async Task Update_own_profile_rejects_empty_full_name()
+    {
+        await using var db = await CreateDatabaseAsync();
+        await AddUserAsync(db, CurrentUserId);
+        var service = CreateService(db, new FakeKeycloakAdminClient());
+
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            service.UpdateOwnProfileAsync(CurrentUserId, new UpdateOwnProfileRequest("  "), CancellationToken.None));
+
+        Assert.Empty(await db.AuditLogs.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Update_own_profile_changes_only_full_name_and_writes_audit()
+    {
+        await using var db = await CreateDatabaseAsync();
+        await AddUserAsync(db, CurrentUserId);
+        var service = CreateService(db, new FakeKeycloakAdminClient());
+        var user = await db.Users.SingleAsync();
+        var email = user.Email;
+        var username = user.Username;
+        var roleId = user.RoleId;
+        var isActive = user.IsActive;
+        var studentCode = user.StudentCode;
+        var lecturerCode = user.LecturerCode;
+
+        await service.UpdateOwnProfileAsync(
+            CurrentUserId, new UpdateOwnProfileRequest("  Updated Name  "), CancellationToken.None);
+
+        Assert.Equal("Updated Name", user.FullName);
+        Assert.Equal(email, user.Email);
+        Assert.Equal(username, user.Username);
+        Assert.Equal(roleId, user.RoleId);
+        Assert.Equal(isActive, user.IsActive);
+        Assert.Equal(studentCode, user.StudentCode);
+        Assert.Equal(lecturerCode, user.LecturerCode);
+        var audit = Assert.Single(await db.AuditLogs.ToListAsync());
+        Assert.Equal(CurrentUserId, audit.UserId);
+        Assert.Equal("UpdateOwnProfile", audit.Action);
+        Assert.Equal("User", audit.TargetEntity);
+        Assert.Equal(CurrentUserId, audit.TargetId);
+    }
+
+    [Fact]
     public async Task Resend_setup_email_succeeds_and_writes_one_audit_row()
     {
         await using var db = await CreateDatabaseAsync();
@@ -232,12 +276,12 @@ public class UserCreationTests
     private static UserService CreateService(AccessConfigDbContext db, FakeKeycloakAdminClient keycloak)
         => new(db, new CurrentUser(), TimeProvider.System, keycloak, NullLogger<UserService>.Instance);
 
-    private static async Task AddUserAsync(AccessConfigDbContext db)
+    private static async Task AddUserAsync(AccessConfigDbContext db, Guid? userId = null)
     {
         var role = await db.Roles.SingleAsync();
         db.Users.Add(new User
         {
-            Id = KeycloakUserId,
+            Id = userId ?? KeycloakUserId,
             RoleId = role.Id,
             Role = role,
             FullName = "Han Hoang Giang",

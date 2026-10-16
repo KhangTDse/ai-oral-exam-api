@@ -11,6 +11,13 @@
 GET {{host}}/api/interview/my-sessions
 Authorization: Bearer {{token}}
 
+### Update my profile (own account)
+PATCH {{host}}/api/auth/me
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "fullName": "Updated Full Name" }
+
 ### Start an attempt (SWD392 session, currently open)
 POST {{host}}/api/interview-attempts
 Authorization: Bearer {{token}}

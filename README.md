@@ -154,6 +154,7 @@ ai-oral-exam-api/
 | Method | Route | Role | Tracker task |
 |---|---|---|---|
 | GET | `/api/auth/me` | any | BE-PLAT-07 |
+| PATCH | `/api/auth/me` | any | |
 | GET | `/api/courses/mine` | Lecturer, Admin | |
 | GET | `/api/exam-sessions`, `/api/exam-sessions/{id}` | Lecturer, Admin | |
 | GET | `/api/interview/my-sessions` | Student | FE-INT-01 |
@@ -165,6 +166,8 @@ ai-oral-exam-api/
 | GET | `/api/reports/exam-sessions/{id}/statistics` | Lecturer, Admin | M3 |
 | GET | `/api/reports/exam-sessions/{id}/grade-sheet` | Lecturer, Admin | F6 (UTF-8 CSV) |
 | GET | `/health` | – | |
+
+The `GET /api/exam-sessions` list includes `participantCount`, `takenCount` (attempts with `PendingReview` or `Finalized` status), and `toReviewCount` (attempts with `PendingReview` status). `PATCH /api/auth/me` accepts a body containing only `fullName` and returns the same profile shape as the GET endpoint.
 
 Every error uses the same format (FOUNDATION-02):
 

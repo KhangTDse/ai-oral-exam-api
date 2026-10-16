@@ -49,6 +49,9 @@ public sealed record UpdateUserRequest(
     bool IsActive,
     UserRole? Role = null);
 
+public sealed record UpdateOwnProfileRequest(
+    [Required, StringLength(150)] string FullName);
+
 internal sealed record UserUpdateValues(
     string FullName,
     UserRole Role,
@@ -63,6 +66,7 @@ public interface IUserService
     Task<CreatedUserDto> CreateAsync(CreateUserRequest r, CancellationToken ct);
     Task<UserDto> UpdateAsync(Guid id, UpdateUserRequest r, CancellationToken ct);
     Task ResendSetupEmailAsync(Guid id, Guid actorId, CancellationToken ct);
+    Task UpdateOwnProfileAsync(Guid currentUserId, UpdateOwnProfileRequest request, CancellationToken ct);
 }
 internal sealed class UserService(
     AccessConfigDbContext db,
@@ -366,6 +370,29 @@ internal sealed class UserService(
             throw new AppException(502, "setup_email_failed", "Keycloak could not send the password setup email.");
 
         CourseService.AddAudit(db, actorId, "ResendSetupEmail", "User", id);
+        await db.SaveChangesAsync(ct);
+    }
+
+    public async Task UpdateOwnProfileAsync(
+        Guid currentUserId, UpdateOwnProfileRequest request, CancellationToken ct)
+    {
+        var user = await db.Users.FirstOrDefaultAsync(x => x.Id == currentUserId, ct) ??
+            throw new NotFoundException("user_not_found", "Account not found.");
+        if (string.IsNullOrWhiteSpace(request.FullName))
+            throw new ValidationException(new Dictionary<string, string[]>
+            {
+                ["fullName"] = ["A full name is required."]
+            });
+
+        var fullName = request.FullName.Trim();
+        if (fullName.Length > 150)
+            throw new ValidationException(new Dictionary<string, string[]>
+            {
+                ["fullName"] = ["The full name must not exceed 150 characters."]
+            });
+
+        user.FullName = fullName;
+        CourseService.AddAudit(db, currentUserId, "UpdateOwnProfile", "User", user.Id);
         await db.SaveChangesAsync(ct);
     }
 
