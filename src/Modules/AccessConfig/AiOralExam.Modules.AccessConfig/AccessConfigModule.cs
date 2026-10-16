@@ -39,7 +39,10 @@ public static class AccessConfigModule
         services.AddScoped<IAiConfigService, AiConfigService>();
         services.AddScoped<IAuditLogService, AuditLogService>();
         services.AddOptions<KeycloakAdminOptions>()
-            .Bind(configuration.GetSection(KeycloakAdminOptions.SectionName));
+            .Bind(configuration.GetSection(KeycloakAdminOptions.SectionName))
+            .Validate(o => !string.IsNullOrWhiteSpace(o.ClientSecret),
+                "KeycloakAdmin:ClientSecret is not configured. Set it with user-secrets or the KeycloakAdmin__ClientSecret environment variable.")
+            .ValidateOnStart();
         services.AddHttpClient(KeycloakAdminClient.HttpClientName);
         services.AddSingleton<IKeycloakAdminClient, KeycloakAdminClient>();
         services.AddDataProtection();

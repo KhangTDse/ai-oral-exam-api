@@ -1,8 +1,11 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using AiOralExam.Modules.AccessConfig;
 using AiOralExam.Modules.AccessConfig.Application.Keycloak;
 using AiOralExam.SharedKernel.Errors;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
@@ -69,6 +72,54 @@ public class KeycloakAdminClientTests
 
         Assert.Equal(502, exception.StatusCode);
         Assert.Equal("keycloak_unavailable", exception.Code);
+    }
+
+    [Fact]
+    public async Task Token_unauthorized_maps_to_admin_client_not_configured()
+    {
+        var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.Unauthorized));
+        var client = CreateClient(handler);
+
+        var exception = await Assert.ThrowsAsync<AppException>(() =>
+            client.CreateUserAsync("sample.user", "sample@example.test", "Sample", "User"));
+
+        Assert.Equal("keycloak_admin_client_not_configured", exception.Code);
+    }
+
+    [Fact]
+    public async Task Admin_api_forbidden_maps_to_admin_forbidden()
+    {
+        var handler = new RecordingHandler(request => request.RequestUri!.AbsolutePath.EndsWith(
+            "/protocol/openid-connect/token", StringComparison.Ordinal)
+            ? TokenResponse()
+            : new HttpResponseMessage(HttpStatusCode.Forbidden));
+        var client = CreateClient(handler);
+
+        var exception = await Assert.ThrowsAsync<AppException>(() =>
+            client.CreateUserAsync("sample.user", "sample@example.test", "Sample", "User"));
+
+        Assert.Equal("keycloak_admin_forbidden", exception.Code);
+    }
+
+    [Fact]
+    public void Empty_admin_client_secret_fails_options_validation()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["KeycloakAdmin:ClientSecret"] = ""
+            })
+            .Build();
+        var services = new ServiceCollection();
+        services.AddAccessConfigModule("Host=localhost;Database=test", configuration);
+        using var provider = services.BuildServiceProvider();
+
+        var exception = Assert.Throws<OptionsValidationException>(
+            () => provider.GetRequiredService<IOptions<KeycloakAdminOptions>>().Value);
+
+        Assert.Contains(
+            "KeycloakAdmin:ClientSecret is not configured. Set it with user-secrets or the KeycloakAdmin__ClientSecret environment variable.",
+            exception.Failures);
     }
 
     [Fact]

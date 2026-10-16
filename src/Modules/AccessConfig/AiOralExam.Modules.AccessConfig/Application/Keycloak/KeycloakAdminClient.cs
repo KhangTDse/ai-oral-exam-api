@@ -155,7 +155,7 @@ internal sealed class KeycloakAdminClient(
                 ])
             };
             using var response = await SendAsync(client, request, ct);
-            EnsureSuccess(response);
+            EnsureTokenSuccess(response);
 
             TokenResponse? tokenResponse;
             try
@@ -200,13 +200,37 @@ internal sealed class KeycloakAdminClient(
 
     private void EnsureSuccess(HttpResponseMessage response)
     {
-        if (!response.IsSuccessStatusCode)
+        if (response.IsSuccessStatusCode)
+            return;
+
+        LogFailedResponse(response);
+        if (response.StatusCode == HttpStatusCode.Forbidden)
+            throw KeycloakAdminForbidden();
+        throw KeycloakUnavailable();
+    }
+
+    private void EnsureTokenSuccess(HttpResponseMessage response)
+    {
+        if (response.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.Unauthorized)
         {
             var requestPath = response.RequestMessage?.RequestUri?.AbsolutePath ?? "(unknown)";
-            logger.LogWarning("Keycloak admin request to {RequestPath} failed with HTTP status {StatusCode}.",
+            logger.LogError("Keycloak rejected the admin client credentials at {RequestPath} with HTTP status {StatusCode}.",
                 requestPath, (int)response.StatusCode);
+            throw KeycloakAdminClientNotConfigured();
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            LogFailedResponse(response);
             throw KeycloakUnavailable();
         }
+    }
+
+    private void LogFailedResponse(HttpResponseMessage response)
+    {
+        var requestPath = response.RequestMessage?.RequestUri?.AbsolutePath ?? "(unknown)";
+        logger.LogWarning("Keycloak admin request to {RequestPath} failed with HTTP status {StatusCode}.",
+            requestPath, (int)response.StatusCode);
     }
 
     private static async Task<ConflictException> MapCreateConflictAsync(
@@ -223,6 +247,14 @@ internal sealed class KeycloakAdminClient(
 
     private static AppException KeycloakUnavailable()
         => new(502, "keycloak_unavailable", "Keycloak admin service is unavailable.");
+
+    private static AppException KeycloakAdminClientNotConfigured()
+        => new(502, "keycloak_admin_client_not_configured",
+            "Keycloak rejected the admin client credentials. Check that the aives-admin-api client exists in the realm and that KeycloakAdmin:ClientId and KeycloakAdmin:ClientSecret are correct.");
+
+    private static AppException KeycloakAdminForbidden()
+        => new(502, "keycloak_admin_forbidden",
+            "Keycloak denied the admin request. The service account may be missing realm-management roles.");
 
     private sealed record CachedToken(string Value, DateTimeOffset ExpiresAt);
 

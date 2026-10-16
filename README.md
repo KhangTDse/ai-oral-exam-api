@@ -246,6 +246,15 @@ User creation in the API stores the AIVES profile only. The corresponding Keyclo
 
 To override settings on your machine without committing them, use `dotnet user-secrets` (the project already has a `UserSecretsId`) or environment variables, e.g. `ConnectionStrings__Database=...`.
 
+Set the Keycloak admin client secret for local development with:
+
+```sh
+dotnet user-secrets set "KeycloakAdmin:ClientSecret" "dev-aives-admin-api-secret" --project src/AiOralExam.Api
+```
+
+This is a development-only value matching `keycloak/aives-realm.json`. Do not put
+the secret in any `appsettings*.json` file.
+
 ## 6. Changing the database
 
 The team chose **`database/01_schema.sql` as the source of truth** (no EF migrations). To add or change a column or table:

@@ -89,8 +89,10 @@ admin client manually for an existing realm:
    with ID `aives-admin-api`.
 2. Enable **Client authentication** and **Service accounts roles**. Disable
    **Standard flow**, **Direct access grants**, and **Implicit flow**, then save.
-3. On **Credentials**, copy the client secret into
-   `KeycloakAdmin:ClientSecret` in the API configuration.
+3. Set the API's local development secret with:
+   `dotnet user-secrets set "KeycloakAdmin:ClientSecret" "dev-aives-admin-api-secret" --project src/AiOralExam.Api`.
+   This value matches `aives-realm.json` and is for development only; do not
+   store it in any `appsettings*.json` file.
 4. On **Service account roles**, select the `realm-management` client and assign
    `manage-users`, `view-users`, `query-users`, and `view-realm`.
 
