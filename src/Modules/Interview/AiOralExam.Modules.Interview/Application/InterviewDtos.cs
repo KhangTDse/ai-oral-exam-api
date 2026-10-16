@@ -33,7 +33,7 @@ public sealed record SubmitAnswerRequest(
     [MaxLength(10000)] string? AnswerText);
 
 public sealed record SubmitScoreReviewRequest(
-    [property: Range(typeof(decimal), "0", "999.99")] decimal FinalScore,
+    [Range(typeof(decimal), "0", "999.99")] decimal FinalScore,
     string? Comment);
 
 public sealed record EvaluationDto(

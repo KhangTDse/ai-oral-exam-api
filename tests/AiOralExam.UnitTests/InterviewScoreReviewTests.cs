@@ -1,3 +1,4 @@
+using System.Reflection;
 using AiOralExam.Modules.AccessConfig.Contracts;
 using AiOralExam.Modules.Interview.Application;
 using AiOralExam.Modules.Interview.Application.Ai;
@@ -9,11 +10,30 @@ using AiOralExam.SharedKernel.Security;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using RangeAttribute = System.ComponentModel.DataAnnotations.RangeAttribute;
 
 namespace AiOralExam.UnitTests;
 
 public class InterviewScoreReviewTests
 {
+    [Fact]
+    public void Score_review_range_validation_is_attached_to_the_constructor_parameter()
+    {
+        var requestType = typeof(SubmitScoreReviewRequest);
+        var constructor = Assert.Single(requestType.GetConstructors());
+        var parameter = Assert.Single(constructor.GetParameters(),
+            parameter => parameter.Name == nameof(SubmitScoreReviewRequest.FinalScore));
+        var range = parameter.GetCustomAttribute<RangeAttribute>();
+
+        Assert.NotNull(range);
+        Assert.False(range!.IsValid(-1m));
+        Assert.False(range.IsValid(1000m));
+        Assert.True(range.IsValid(0m));
+        Assert.True(range.IsValid(10m));
+        Assert.Null(requestType.GetProperty(nameof(SubmitScoreReviewRequest.FinalScore))!
+            .GetCustomAttribute<RangeAttribute>());
+    }
+
     [Fact]
     public async Task Submit_score_review_approves_attempt_and_is_returned_by_get()
     {
