@@ -23,13 +23,14 @@ public sealed record AiServiceConfigDto(
     string EndpointUrl,
     string Language,
     bool IsActive,
-    DateTime UpdatedAt);
+    DateTime UpdatedAt,
+    bool HasApiKey);
 
 public sealed record SaveAiServiceConfigRequest(
     AiServiceType ServiceType,
     [Required, StringLength(100)] string ProviderName,
     [Url, Required, StringLength(500)] string EndpointUrl,
-    [Required] string ApiKey,
+    string? ApiKey,
     [Required] SpeechLanguage Language,
     bool IsActive = true);
 
@@ -45,13 +46,14 @@ internal sealed class AiConfigService(AccessConfigDbContext db, ICurrentUser me,
 {
     IDataProtector P => protection.CreateProtector("AIVES.AiService.ApiKey.v1");
     static AiServiceConfigDto D(AiServiceConfig x)
-        => new(x.Id, x.ServiceType.ToString(), x.ProviderName, x.EndpointUrl, x.Language.ToString(), x.IsActive, x.UpdatedAt);
+        => new(x.Id, x.ServiceType.ToString(), x.ProviderName, x.EndpointUrl, x.Language.ToString(),
+            x.IsActive, x.UpdatedAt, !string.IsNullOrEmpty(x.ApiKeyEncrypted));
 
     public async Task<IReadOnlyList<AiServiceConfigDto>> ListAsync(CancellationToken ct)
         => await db.AiServiceConfigs.AsNoTracking().OrderBy(x => x.ServiceType)
         .Select(x => new AiServiceConfigDto(
             x.Id, x.ServiceType.ToString(), x.ProviderName, x.EndpointUrl,
-            x.Language.ToString(), x.IsActive, x.UpdatedAt))
+            x.Language.ToString(), x.IsActive, x.UpdatedAt, !string.IsNullOrEmpty(x.ApiKeyEncrypted)))
         .ToListAsync(ct);
 
     public async Task<AiServiceConfigDto> GetAsync(Guid id, CancellationToken ct)
@@ -61,6 +63,11 @@ internal sealed class AiConfigService(AccessConfigDbContext db, ICurrentUser me,
     public async Task<AiServiceConfigDto> SaveAsync(Guid? id, SaveAiServiceConfigRequest r, CancellationToken ct)
     {
         ValidateRequest(r);
+        if (id is null && string.IsNullOrWhiteSpace(r.ApiKey))
+            throw new ValidationException(new Dictionary<string, string[]>
+            {
+                [nameof(r.ApiKey)] = ["API key is required."]
+            });
         AiServiceConfig x;
         if (id is null)
         {
@@ -86,7 +93,8 @@ internal sealed class AiConfigService(AccessConfigDbContext db, ICurrentUser me,
         x.ServiceType = r.ServiceType;
         x.ProviderName = r.ProviderName.Trim();
         x.EndpointUrl = r.EndpointUrl.Trim();
-        x.ApiKeyEncrypted = P.Protect(r.ApiKey);
+        if (!string.IsNullOrWhiteSpace(r.ApiKey))
+            x.ApiKeyEncrypted = P.Protect(r.ApiKey);
         x.Language = r.Language;
         x.IsActive = r.IsActive;
         x.UpdatedAt = DateTime.UtcNow;
@@ -141,8 +149,6 @@ internal sealed class AiConfigService(AccessConfigDbContext db, ICurrentUser me,
             (endpointUri.Scheme != Uri.UriSchemeHttp && endpointUri.Scheme != Uri.UriSchemeHttps) ||
             Uri.CheckHostName(endpointUri.Host) == UriHostNameType.Unknown)
             errors[nameof(r.EndpointUrl)] = ["Endpoint URL is required, must be no more than 500 characters, and must be an absolute HTTP or HTTPS URL with a valid host."];
-        if (string.IsNullOrWhiteSpace(r.ApiKey))
-            errors[nameof(r.ApiKey)] = ["API key is required."];
         if (errors.Count > 0)
             throw new ValidationException(errors);
     }

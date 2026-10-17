@@ -9,8 +9,8 @@ namespace AiOralExam.Modules.AccessConfig.Controllers;
 public sealed class AdminCoursesController(ICourseService service) : ControllerBase
 {
     [HttpGet]
-    public Task<IReadOnlyList<CourseDto>> List(CancellationToken ct)
-        => service.GetAllAsync(ct);
+    public Task<IReadOnlyList<AdminCourseDto>> List(CancellationToken ct)
+        => service.GetAllWithLecturersAsync(ct);
 
     [HttpPost]
     public async Task<ActionResult<CourseDto>> Create(CreateCourseRequest request, CancellationToken ct)

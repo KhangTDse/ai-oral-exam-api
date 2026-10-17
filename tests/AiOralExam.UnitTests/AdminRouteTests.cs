@@ -1,5 +1,6 @@
 using System.Reflection;
 using AiOralExam.Modules.AccessConfig.Application.AIServices;
+using AiOralExam.Modules.AccessConfig.Application.Courses;
 using AiOralExam.Modules.AccessConfig.Controllers;
 using AiOralExam.Modules.AccessConfig.Domain;
 using AiOralExam.SharedKernel.Errors;
@@ -49,6 +50,13 @@ public class AdminRouteTests
 
         Assert.DoesNotContain("ApiKey", propertyNames);
         Assert.DoesNotContain("ApiKeyEncrypted", propertyNames);
+        Assert.Contains("HasApiKey", propertyNames);
+    }
+
+    [Fact]
+    public void Public_course_dto_does_not_expose_lecturers()
+    {
+        Assert.Null(typeof(CourseDto).GetProperty("Lecturers"));
     }
 
     [Fact]

@@ -1,5 +1,7 @@
 using AiOralExam.Modules.AccessConfig.Application.Courses;
+using AiOralExam.Modules.AccessConfig.Application.Courses;
 using AiOralExam.Modules.AccessConfig.Application.LecturerAssignments;
+using AiOralExam.Modules.AccessConfig.Controllers;
 using AiOralExam.Modules.AccessConfig.Domain;
 using AiOralExam.Modules.AccessConfig.Infrastructure;
 using AiOralExam.SharedKernel.Errors;
@@ -84,6 +86,57 @@ public class CourseCreationTests
         Assert.Empty(db.Courses);
         Assert.Empty(db.CourseLecturers);
         Assert.Empty(db.AuditLogs);
+    }
+
+    [Fact]
+    public async Task Admin_course_list_includes_ordered_lecturers_and_empty_lists()
+    {
+        await using var db = CreateDbContext();
+        var courseWithLecturers = new Course
+        {
+            Id = Guid.NewGuid(),
+            Code = "CS101",
+            Name = "Course 101"
+        };
+        var courseWithoutLecturers = new Course
+        {
+            Id = Guid.NewGuid(),
+            Code = "CS102",
+            Name = "Course 102"
+        };
+        var zLecturer = AddUser(db, UserRole.Lecturer);
+        zLecturer.FullName = "Zed Lecturer";
+        var aLecturer = AddUser(db, UserRole.Lecturer);
+        aLecturer.FullName = "Ada Lecturer";
+        db.Courses.AddRange(courseWithLecturers, courseWithoutLecturers);
+        db.CourseLecturers.AddRange(
+            new CourseLecturer
+            {
+                Course = courseWithLecturers,
+                Lecturer = zLecturer,
+                CourseId = courseWithLecturers.Id,
+                LecturerId = zLecturer.Id,
+                AssignedAt = DateTime.UtcNow
+            },
+            new CourseLecturer
+            {
+                Course = courseWithLecturers,
+                Lecturer = aLecturer,
+                CourseId = courseWithLecturers.Id,
+                LecturerId = aLecturer.Id,
+                AssignedAt = DateTime.UtcNow
+            });
+        await db.SaveChangesAsync();
+        var currentUser = new TestCurrentUser(Guid.NewGuid());
+        var courses = new CourseService(db, currentUser, new LecturerAssignmentService(db, currentUser));
+
+        var result = await new AdminCoursesController(courses).List(CancellationToken.None);
+
+        var courseWithLecturersResult = Assert.Single(result, x => x.Id == courseWithLecturers.Id);
+        Assert.Equal(new[] { "Ada Lecturer", "Zed Lecturer" },
+            courseWithLecturersResult.Lecturers.Select(x => x.FullName));
+        var courseWithoutLecturersResult = Assert.Single(result, x => x.Id == courseWithoutLecturers.Id);
+        Assert.Empty(courseWithoutLecturersResult.Lecturers);
     }
 
     private static AccessConfigDbContext CreateDbContext()

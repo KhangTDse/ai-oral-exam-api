@@ -14,6 +14,7 @@ namespace AiOralExam.Modules.AccessConfig.Application.Courses;
 public interface ICourseService
 {
     Task<IReadOnlyList<CourseDto>> GetAllAsync(CancellationToken ct);
+    Task<IReadOnlyList<AdminCourseDto>> GetAllWithLecturersAsync(CancellationToken ct);
     Task<CourseDto> GetAsync(Guid id, CancellationToken ct);
     Task<CourseDto> CreateAsync(CreateCourseRequest r, CancellationToken ct);
     Task<CourseDto> UpdateAsync(Guid id, UpdateCourseRequest r, CancellationToken ct);
@@ -28,6 +29,16 @@ internal sealed class CourseService(
     public async Task<IReadOnlyList<CourseDto>> GetAllAsync(CancellationToken ct)
         => await db.Courses.AsNoTracking().OrderBy(x => x.Code)
         .Select(x => new CourseDto(x.Id, x.Code, x.Name, x.Lecturers.Count, x.ExamSessions.Count))
+        .ToListAsync(ct);
+
+    public async Task<IReadOnlyList<AdminCourseDto>> GetAllWithLecturersAsync(CancellationToken ct)
+        => await db.Courses.AsNoTracking().OrderBy(x => x.Code)
+        .Select(x => new AdminCourseDto(
+            x.Id, x.Code, x.Name, x.Lecturers.Count, x.ExamSessions.Count,
+            x.Lecturers.OrderBy(l => l.Lecturer.FullName)
+                .Select(l => new LecturerDto(l.LecturerId, l.Lecturer.FullName, l.Lecturer.Email,
+                    l.Lecturer.LecturerCode, l.AssignedAt))
+                .ToList()))
         .ToListAsync(ct);
 
     public async Task<CourseDto> GetAsync(Guid id, CancellationToken ct)
