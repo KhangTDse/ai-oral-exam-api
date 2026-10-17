@@ -52,7 +52,7 @@ public class UserCreationTests
     }
 
     [Fact]
-    public async Task Get_user_derives_username_from_email_local_part()
+    public async Task Get_user_returns_username_from_database()
     {
         await using var db = await CreateDatabaseAsync();
         var role = await db.Roles.SingleAsync();
@@ -62,9 +62,9 @@ public class UserCreationTests
             Id = userId,
             RoleId = role.Id,
             Role = role,
-            FullName = "Sample User",
-            Email = "Sample.User@example.test",
-            Username = "different-stored-value",
+            FullName = "Nguyen Van An",
+            Email = "nguyen.van.an@example.test",
+            Username = "an.nv",
             IsActive = true
         });
         await db.SaveChangesAsync();
@@ -72,7 +72,7 @@ public class UserCreationTests
 
         var result = await service.GetAsync(userId, CancellationToken.None);
 
-        Assert.Equal("sample.user", result.Username);
+        Assert.Equal("an.nv", result.Username);
     }
 
     [Fact]
@@ -85,6 +85,25 @@ public class UserCreationTests
         await Assert.ThrowsAsync<ValidationException>(() =>
             service.UpdateOwnProfileAsync(CurrentUserId, new UpdateOwnProfileRequest("  "), CancellationToken.None));
 
+        Assert.Empty(await db.AuditLogs.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Resend_setup_email_rejects_inactive_user_without_keycloak_call_or_audit()
+    {
+        await using var db = await CreateDatabaseAsync();
+        await AddUserAsync(db);
+        var user = await db.Users.SingleAsync();
+        user.IsActive = false;
+        await db.SaveChangesAsync();
+        var keycloak = new FakeKeycloakAdminClient();
+        var service = CreateService(db, keycloak);
+
+        var exception = await Assert.ThrowsAsync<ConflictException>(() =>
+            service.ResendSetupEmailAsync(KeycloakUserId, CurrentUserId, CancellationToken.None));
+
+        Assert.Equal("user_inactive", exception.Code);
+        Assert.Empty(keycloak.Calls);
         Assert.Empty(await db.AuditLogs.ToListAsync());
     }
 

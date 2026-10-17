@@ -179,7 +179,7 @@ internal sealed class UserService(
         u.Id,
         u.FullName,
         u.Email,
-        UsernameFromEmail(u.Email),
+        u.Username,
         u.Role.Name,
         u.StudentCode,
         u.LecturerCode,
@@ -297,7 +297,7 @@ internal sealed class UserService(
         }
 
         var setupEmailSent = await keycloak.SendSetPasswordEmailAsync(keycloakId, ct);
-        return new CreatedUserDto(u.Id, u.FullName, u.Email, UsernameFromEmail(u.Email), u.Role.Name,
+        return new CreatedUserDto(u.Id, u.FullName, u.Email, u.Username, u.Role.Name,
             u.StudentCode, u.LecturerCode, u.IsActive, setupEmailSent);
     }
 
@@ -366,6 +366,8 @@ internal sealed class UserService(
     {
         var user = await db.Users.FirstOrDefaultAsync(x => x.Id == id, ct) ??
             throw new NotFoundException("user_not_found", "User not found.");
+        if (!user.IsActive)
+            throw new ConflictException("user_inactive", "Cannot send a setup email to an inactive user.");
         if (!await keycloak.SendSetPasswordEmailAsync(user.Id, ct))
             throw new AppException(502, "setup_email_failed", "Keycloak could not send the password setup email.");
 
@@ -373,6 +375,7 @@ internal sealed class UserService(
         await db.SaveChangesAsync(ct);
     }
 
+    /// <summary>Updates the display name in the application database only; the Keycloak profile is not synchronized.</summary>
     public async Task UpdateOwnProfileAsync(
         Guid currentUserId, UpdateOwnProfileRequest request, CancellationToken ct)
     {

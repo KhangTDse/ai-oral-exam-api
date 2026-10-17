@@ -183,11 +183,19 @@ An admin user's username is the email local part, lowercased. Users with the sam
 
 ### GET `/api/auth/me` without a database user row
 
-A valid Keycloak token alone is not enough; the user must have an active AIVES database row, created through the admin API. In the current HTTP pipeline, a missing or inactive row is rejected during token validation with `403 account_inactive` before `/api/auth/me` reaches its profile lookup. The profile service itself reports `404 user_not_found` if called for an unknown ID, but that is not the current endpoint response for a missing row.
+A valid Keycloak token alone is not enough; the user must have an active AIVES database row, 
+created through the admin API.
+In the current HTTP pipeline, a missing or inactive row is rejected during token validation with `403 account_inactive` before `/api/auth/me` reaches its profile lookup.
+The profile service itself reports `404 user_not_found` if called for an unknown ID, but that is not the current endpoint response for a missing row.
 
 ### Source of truth for roles and active status
 
-The AIVES database is the source of truth for authorization: its role replaces the token role, and an inactive or missing user row is denied by the API. Changing a user's role or deactivating them in AIVES does not currently update the Keycloak account. Admin user creation also provisions the Keycloak identity and assigns its initial realm role; Keycloak handles authentication and password setup, but subsequent role and active-status changes remain database-only.
+The AIVES database is the source of truth for authorization: its role replaces the token role, 
+and an inactive or missing user row is denied by the API.
+Changing a user's role or deactivating them in AIVES does not currently update the Keycloak account. 
+Admin user creation also provisions the Keycloak identity and assigns its initial realm role; 
+Keycloak handles authentication and password setup, but subsequent role and active-status changes remain database-only. 
+Changing the full name through `PATCH /api/auth/me` updates only the AIVES profile and is not synchronized to Keycloak.
 
 ### Attempt states (BE-AI-01)
 
