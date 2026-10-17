@@ -1,4 +1,5 @@
 using AiOralExam.Modules.AccessConfig.Application.Questions;
+using AiOralExam.Modules.AccessConfig.Application.AuditLogs;
 using AiOralExam.Modules.AccessConfig.Domain;
 using AiOralExam.Modules.AccessConfig.Infrastructure;
 using AiOralExam.SharedKernel.Errors;
@@ -22,8 +23,8 @@ public class QuestionImportTests
 
         var audit = Assert.Single(db.AuditLogs);
         Assert.Equal(lecturer.Id, audit.UserId);
-        Assert.Equal("Create", audit.Action);
-        Assert.Equal("Question", audit.TargetEntity);
+        Assert.Equal(AuditActions.Create, audit.Action);
+        Assert.Equal(AuditEntities.Question, audit.TargetEntity);
         Assert.Equal(question.Id, audit.TargetId);
     }
 
@@ -44,7 +45,7 @@ public class QuestionImportTests
         Assert.Equal("First question", imported[0].Content);
         Assert.All(imported, question => Assert.False(question.HasRubric));
         Assert.Equal(2, db.Questions.Count());
-        Assert.Equal(new[] { "Create", "Create" }, db.AuditLogs.Select(x => x.Action).ToArray());
+        Assert.Equal(new[] { AuditActions.Create, AuditActions.Create }, db.AuditLogs.Select(x => x.Action).ToArray());
         Assert.Equal(imported.Select(x => x.Id).OrderBy(x => x),
             db.AuditLogs.Select(x => x.TargetId!.Value).OrderBy(x => x));
     }

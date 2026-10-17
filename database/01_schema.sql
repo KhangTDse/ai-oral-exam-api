@@ -91,6 +91,7 @@ CREATE TABLE audit_logs (
     action         VARCHAR(100) NOT NULL,
     target_entity  VARCHAR(100) NOT NULL,
     target_id      UUID,                    -- not in the class diagram; kept so a log points at the exact row
+    description    VARCHAR(500),
     created_at     TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 CREATE INDEX ix_audit_user ON audit_logs(user_id);

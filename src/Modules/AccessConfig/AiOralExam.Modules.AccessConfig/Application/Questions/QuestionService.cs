@@ -4,6 +4,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using AiOralExam.Modules.AccessConfig.Application.AuditLogs;
 using AiOralExam.Modules.AccessConfig.Application.Courses;
 using AiOralExam.Modules.AccessConfig.Contracts;
 using AiOralExam.Modules.AccessConfig.Domain;
@@ -70,7 +71,7 @@ internal sealed class QuestionService(AccessConfigDbContext db, ICurrentUser me)
 
     public async Task<QuestionDto> CreateAsync(Guid sid, CreateQuestionRequest r, CancellationToken ct)
     {
-        await Editable(sid, ct);
+        var session = await Editable(sid, ct);
         if (await db.Questions.AnyAsync(x => x.ExamSessionId == sid && x.OrderNo == r.OrderNo, ct))
             throw new ConflictException("question_order_exists", "Question order number already exists.");
         var q = new Question
@@ -81,14 +82,15 @@ internal sealed class QuestionService(AccessConfigDbContext db, ICurrentUser me)
             Content = r.Content.Trim()
         };
         db.Questions.Add(q);
-        CourseService.AddAudit(db, me.Id, "Create", "Question", q.Id);
+        CourseService.AddAudit(db, me.Id, AuditActions.Create, AuditEntities.Question, q.Id,
+            $"Question in {session.Title}");
         await db.SaveChangesAsync(ct);
         return new(q.Id, q.OrderNo, q.Content, false);
     }
 
     public async Task<IReadOnlyList<QuestionDto>> ImportAsync(Guid sid, ImportQuestionsRequest r, CancellationToken ct)
     {
-        await Editable(sid, ct);
+        var session = await Editable(sid, ct);
         var errors = new Dictionary<string, string[]>();
         if (r.Questions is null || r.Questions.Count == 0)
             errors["questions"] = ["At least one question is required."];
@@ -145,7 +147,8 @@ internal sealed class QuestionService(AccessConfigDbContext db, ICurrentUser me)
         }).ToList();
         db.Questions.AddRange(imported);
         foreach (var question in imported)
-            CourseService.AddAudit(db, me.Id, "Create", "Question", question.Id);
+            CourseService.AddAudit(db, me.Id, AuditActions.Create, AuditEntities.Question, question.Id,
+                $"Question in {session.Title}");
         await db.SaveChangesAsync(ct);
 
         return imported.Select(x => new QuestionDto(x.Id, x.OrderNo, x.Content, false)).ToList();
@@ -153,25 +156,27 @@ internal sealed class QuestionService(AccessConfigDbContext db, ICurrentUser me)
 
     public async Task<QuestionDto> UpdateAsync(Guid sid, Guid id, UpdateQuestionRequest r, CancellationToken ct)
     {
-        await Editable(sid, ct);
+        var session = await Editable(sid, ct);
         var q = await db.Questions.FirstOrDefaultAsync(x => x.Id == id && x.ExamSessionId == sid, ct) ??
             throw new NotFoundException("question_not_found", "Question not found.");
         if (await db.Questions.AnyAsync(x => x.ExamSessionId == sid && x.OrderNo == r.OrderNo && x.Id != id, ct))
             throw new ConflictException("question_order_exists", "Question order number already exists.");
         q.OrderNo = r.OrderNo;
         q.Content = r.Content.Trim();
-        CourseService.AddAudit(db, me.Id, "Update", "Question", id);
+        CourseService.AddAudit(db, me.Id, AuditActions.Update, AuditEntities.Question, id,
+            $"Question in {session.Title}");
         await db.SaveChangesAsync(ct);
         return new(q.Id, q.OrderNo, q.Content, q.Rubric != null);
     }
 
     public async Task DeleteAsync(Guid sid, Guid id, CancellationToken ct)
     {
-        await Editable(sid, ct);
+        var session = await Editable(sid, ct);
         var q = await db.Questions.FirstOrDefaultAsync(x => x.Id == id && x.ExamSessionId == sid, ct) ??
             throw new NotFoundException("question_not_found", "Question not found.");
+        var description = $"Question in {session.Title}";
         db.Questions.Remove(q);
-        CourseService.AddAudit(db, me.Id, "Delete", "Question", id);
+        CourseService.AddAudit(db, me.Id, AuditActions.Delete, AuditEntities.Question, id, description);
         await db.SaveChangesAsync(ct);
     }
 

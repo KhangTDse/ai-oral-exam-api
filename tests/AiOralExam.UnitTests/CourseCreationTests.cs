@@ -1,6 +1,6 @@
 using AiOralExam.Modules.AccessConfig.Application.Courses;
-using AiOralExam.Modules.AccessConfig.Application.Courses;
 using AiOralExam.Modules.AccessConfig.Application.LecturerAssignments;
+using AiOralExam.Modules.AccessConfig.Application.AuditLogs;
 using AiOralExam.Modules.AccessConfig.Controllers;
 using AiOralExam.Modules.AccessConfig.Domain;
 using AiOralExam.Modules.AccessConfig.Infrastructure;
@@ -29,8 +29,11 @@ public class CourseCreationTests
         Assert.Equal("CS101", created.Code);
         Assert.Equal(1, created.LecturerCount);
         Assert.Equal(lecturer.Id, Assert.Single(db.CourseLecturers).LecturerId);
-        Assert.Equal(new[] { "AssignLecturer", "Create" },
+        Assert.Equal(new[] { AuditActions.AssignLecturer, AuditActions.Create },
             db.AuditLogs.Select(x => x.Action).OrderBy(x => x).ToArray());
+        var courseAudit = Assert.Single(db.AuditLogs.Where(x => x.Action == AuditActions.Create));
+        Assert.Equal(AuditEntities.Course, courseAudit.TargetEntity);
+        Assert.Contains("CS101", courseAudit.Description);
     }
 
     [Fact]

@@ -14,6 +14,7 @@ public sealed record AuditLogDto(
     string TargetEntity,
     Guid? TargetId,
     DateTime CreatedAt,
+    string? Description,
     string? UserName,
     string? Email);
 
@@ -43,7 +44,7 @@ internal sealed class AuditLogService(AccessConfigDbContext db) : IAuditLogServi
         return await q.OrderByDescending(x => x.l.CreatedAt)
             .Take(take)
             .Select(x => new AuditLogDto(x.l.Id, x.l.UserId, x.l.Action, x.l.TargetEntity, x.l.TargetId,
-                x.l.CreatedAt, x.u.FullName, x.u.Email))
+                x.l.CreatedAt, x.l.Description, x.u.FullName, x.u.Email))
             .ToListAsync(ct);
     }
 }

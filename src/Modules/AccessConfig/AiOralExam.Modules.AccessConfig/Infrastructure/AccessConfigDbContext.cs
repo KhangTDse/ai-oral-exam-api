@@ -69,6 +69,7 @@ public sealed class AccessConfigDbContext(DbContextOptions<AccessConfigDbContext
             e.HasKey(x => x.Id);
             e.Property(x => x.Action).HasMaxLength(100).IsRequired();
             e.Property(x => x.TargetEntity).HasMaxLength(100).IsRequired();
+            e.Property(x => x.Description).HasMaxLength(500);
             e.Property(x => x.CreatedAt).HasDefaultValueSql("now()");
             e.HasOne<User>().WithMany().HasForeignKey(x => x.UserId)
                 .OnDelete(DeleteBehavior.NoAction);

@@ -1,5 +1,6 @@
 using AiOralExam.Modules.AccessConfig.Application.Keycloak;
 using AiOralExam.Modules.AccessConfig.Application.Users;
+using AiOralExam.Modules.AccessConfig.Application.AuditLogs;
 using AiOralExam.Modules.AccessConfig.Domain;
 using AiOralExam.Modules.AccessConfig.Infrastructure;
 using AiOralExam.SharedKernel.Errors;
@@ -132,9 +133,8 @@ public class UserCreationTests
         Assert.Equal(studentCode, user.StudentCode);
         Assert.Equal(lecturerCode, user.LecturerCode);
         var audit = Assert.Single(await db.AuditLogs.ToListAsync());
-        Assert.Equal(CurrentUserId, audit.UserId);
-        Assert.Equal("UpdateOwnProfile", audit.Action);
-        Assert.Equal("User", audit.TargetEntity);
+        Assert.Equal(AuditActions.UpdateOwnProfile, audit.Action);
+        Assert.Equal(AuditEntities.User, audit.TargetEntity);
         Assert.Equal(CurrentUserId, audit.TargetId);
     }
 
@@ -149,9 +149,8 @@ public class UserCreationTests
         await service.ResendSetupEmailAsync(KeycloakUserId, CurrentUserId, CancellationToken.None);
 
         var audit = Assert.Single(await db.AuditLogs.ToListAsync());
-        Assert.Equal(CurrentUserId, audit.UserId);
-        Assert.Equal("ResendSetupEmail", audit.Action);
-        Assert.Equal("User", audit.TargetEntity);
+        Assert.Equal(AuditActions.ResendSetupEmail, audit.Action);
+        Assert.Equal(AuditEntities.User, audit.TargetEntity);
         Assert.Equal(KeycloakUserId, audit.TargetId);
         Assert.Equal(["email"], keycloak.Calls);
     }

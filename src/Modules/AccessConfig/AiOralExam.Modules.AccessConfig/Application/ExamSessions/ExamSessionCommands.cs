@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 
+using AiOralExam.Modules.AccessConfig.Application.AuditLogs;
 using AiOralExam.Modules.AccessConfig.Application.Courses;
 using AiOralExam.Modules.AccessConfig.Contracts;
 using AiOralExam.Modules.AccessConfig.Domain;
@@ -97,7 +98,8 @@ internal sealed class ExamSessionCommands(AccessConfigDbContext db, ICurrentUser
             CreatedAt = DateTime.UtcNow
         };
         db.ExamSessions.Add(s);
-        CourseService.AddAudit(db, me.Id, "Create", "ExamSession", s.Id);
+        CourseService.AddAudit(db, me.Id, AuditActions.Create, AuditEntities.ExamSession, s.Id,
+            $"Exam session {s.Title} in course {c.Code}");
         await db.SaveChangesAsync(ct);
         return D(s, 0);
     }
@@ -119,7 +121,8 @@ internal sealed class ExamSessionCommands(AccessConfigDbContext db, ICurrentUser
         s.StartTime = start; s.EndTime = end;
         s.TimeLimitPerAnswerSeconds = r.TimeLimitPerAnswerSeconds;
         s.MaxFollowUps = r.MaxFollowUps;
-        CourseService.AddAudit(db, me.Id, "Update", "ExamSession", id);
+        CourseService.AddAudit(db, me.Id, AuditActions.Update, AuditEntities.ExamSession, id,
+            $"Exam session {s.Title} in course {s.Course.Code}");
         await db.SaveChangesAsync(ct);
         return D(s, await db.Participants.CountAsync(x => x.ExamSessionId == id, ct));
     }
@@ -128,8 +131,9 @@ internal sealed class ExamSessionCommands(AccessConfigDbContext db, ICurrentUser
         var s = await Load(id, ct);
         if (s.Status != ExamSessionStatus.Draft)
             throw new ConflictException("exam_session_locked", "Only draft exam sessions can be deleted.");
+        var description = $"Exam session {s.Title} in course {s.Course.Code}";
         db.ExamSessions.Remove(s);
-        CourseService.AddAudit(db, me.Id, "Delete", "ExamSession", id);
+        CourseService.AddAudit(db, me.Id, AuditActions.Delete, AuditEntities.ExamSession, id, description);
         await db.SaveChangesAsync(ct);
     }
 
@@ -167,7 +171,8 @@ internal sealed class ExamSessionCommands(AccessConfigDbContext db, ICurrentUser
                 }
             });
         s.Status = ExamSessionStatus.Published;
-        CourseService.AddAudit(db, me.Id, "Publish", "ExamSession", id);
+        CourseService.AddAudit(db, me.Id, AuditActions.Publish, AuditEntities.ExamSession, id,
+            $"Exam session {s.Title} in course {s.Course.Code}");
         await db.SaveChangesAsync(ct);
         return D(s, count);
     }
@@ -177,7 +182,8 @@ internal sealed class ExamSessionCommands(AccessConfigDbContext db, ICurrentUser
         if (s.Status != ExamSessionStatus.Published)
             throw new ConflictException("exam_session_not_published", "Only published exam sessions can be closed.");
         s.Status = ExamSessionStatus.Closed;
-        CourseService.AddAudit(db, me.Id, "Close", "ExamSession", id);
+        CourseService.AddAudit(db, me.Id, AuditActions.Close, AuditEntities.ExamSession, id,
+            $"Exam session {s.Title} in course {s.Course.Code}");
         await db.SaveChangesAsync(ct);
         return D(s, await db.Participants.CountAsync(x => x.ExamSessionId == id, ct));
     }

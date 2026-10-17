@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using AiOralExam.Modules.AccessConfig.Application.AuditLogs;
 using AiOralExam.Modules.AccessConfig.Application.Courses;
 using AiOralExam.Modules.AccessConfig.Domain;
 using AiOralExam.Modules.AccessConfig.Infrastructure;
@@ -59,7 +60,10 @@ internal sealed class LecturerAssignmentService(AccessConfigDbContext db, ICurre
 
     public async Task<LecturerDto> AssignAsync(Guid courseId, Guid lecturerId, CancellationToken ct)
     {
-        if (!await db.Courses.AnyAsync(x => x.Id == courseId, ct))
+        var course = db.Courses.Local.FirstOrDefault(x => x.Id == courseId);
+        if (course is null)
+            course = await db.Courses.FirstOrDefaultAsync(x => x.Id == courseId, ct);
+        if (course is null)
             throw new NotFoundException("course_not_found", "Course not found.");
         var u = await LoadLecturerAsync(lecturerId, ct);
         if (await db.CourseLecturers.AnyAsync(x => x.CourseId == courseId && x.LecturerId == lecturerId, ct))
@@ -71,17 +75,20 @@ internal sealed class LecturerAssignmentService(AccessConfigDbContext db, ICurre
             AssignedAt = DateTime.UtcNow
         };
         db.CourseLecturers.Add(x);
-        CourseService.AddAudit(db, me.Id, "AssignLecturer", "Course", courseId);
+        CourseService.AddAudit(db, me.Id, AuditActions.AssignLecturer, AuditEntities.Course, courseId,
+            $"Lecturer {u.Username} assigned to course {course.Code}");
         await db.SaveChangesAsync(ct);
         return new(u.Id, u.FullName, u.Email, u.LecturerCode, x.AssignedAt);
     }
 
     public async Task RemoveAsync(Guid courseId, Guid lecturerId, CancellationToken ct)
     {
-        var x = await db.CourseLecturers.FirstOrDefaultAsync(x => x.CourseId == courseId && x.LecturerId == lecturerId, ct) ??
+        var x = await db.CourseLecturers.Include(x => x.Course).Include(x => x.Lecturer)
+            .FirstOrDefaultAsync(x => x.CourseId == courseId && x.LecturerId == lecturerId, ct) ??
             throw new NotFoundException("assignment_not_found", "Lecturer assignment not found.");
+        var description = $"Lecturer {x.Lecturer.Username} removed from course {x.Course.Code}";
         db.CourseLecturers.Remove(x);
-        CourseService.AddAudit(db, me.Id, "RemoveLecturer", "Course", courseId);
+        CourseService.AddAudit(db, me.Id, AuditActions.RemoveLecturer, AuditEntities.Course, courseId, description);
         await db.SaveChangesAsync(ct);
     }
 }

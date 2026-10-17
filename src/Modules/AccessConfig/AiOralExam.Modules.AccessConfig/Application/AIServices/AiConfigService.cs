@@ -4,6 +4,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using AiOralExam.Modules.AccessConfig.Application.AuditLogs;
 using AiOralExam.Modules.AccessConfig.Application.Courses;
 using AiOralExam.Modules.AccessConfig.Domain;
 using AiOralExam.Modules.AccessConfig.Infrastructure;
@@ -100,7 +101,8 @@ internal sealed class AiConfigService(AccessConfigDbContext db, ICurrentUser me,
         x.UpdatedAt = DateTime.UtcNow;
         try
         {
-            CourseService.AddAudit(db, me.Id, id is null ? "Create" : "Update", "AiServiceConfig", x.Id);
+            CourseService.AddAudit(db, me.Id, id is null ? AuditActions.Create : AuditActions.Update,
+                AuditEntities.AiServiceConfig, x.Id, $"AI service {x.ServiceType} / {x.ProviderName}");
             await db.SaveChangesAsync(ct);
         }
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException
@@ -157,8 +159,9 @@ internal sealed class AiConfigService(AccessConfigDbContext db, ICurrentUser me,
     {
         var x = await db.AiServiceConfigs.FindAsync([id], ct) ??
             throw new NotFoundException("ai_config_not_found", "AI service configuration not found.");
+        var description = $"AI service {x.ServiceType} / {x.ProviderName}";
         db.AiServiceConfigs.Remove(x);
-        CourseService.AddAudit(db, me.Id, "Delete", "AiServiceConfig", id);
+        CourseService.AddAudit(db, me.Id, AuditActions.Delete, AuditEntities.AiServiceConfig, id, description);
         await db.SaveChangesAsync(ct);
     }
 }

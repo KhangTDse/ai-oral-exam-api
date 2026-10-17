@@ -4,6 +4,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using AiOralExam.Modules.AccessConfig.Application.AuditLogs;
 using AiOralExam.Modules.AccessConfig.Application.Courses;
 using AiOralExam.Modules.AccessConfig.Contracts;
 using AiOralExam.Modules.AccessConfig.Domain;
@@ -79,6 +80,7 @@ internal sealed class RubricService(AccessConfigDbContext db, ICurrentUser me) :
             throw new NotFoundException("question_not_found", "Question not found.");
 
         var rubric = q.Rubric;
+        var isNew = rubric is null;
         if (rubric is null)
         {
             rubric = new Rubric
@@ -124,7 +126,8 @@ internal sealed class RubricService(AccessConfigDbContext db, ICurrentUser me) :
             criterion.MaxPoints = item.MaxPoints;
         }
 
-        CourseService.AddAudit(db, me.Id, "Save", "Rubric", rubric.Id);
+        CourseService.AddAudit(db, me.Id, isNew ? AuditActions.Create : AuditActions.Update,
+            AuditEntities.Rubric, rubric.Id, $"Rubric for question {q.Id}");
         await db.SaveChangesAsync(ct);
         await db.Entry(rubric).ReloadAsync(ct);
         await transaction.CommitAsync(ct);
@@ -143,8 +146,9 @@ internal sealed class RubricService(AccessConfigDbContext db, ICurrentUser me) :
             .Select(x => x.Rubric)
             .FirstOrDefaultAsync(ct)
             ?? throw new NotFoundException("rubric_not_found", "Rubric not found.");
+        var description = $"Rubric for question {qid}";
         db.Rubrics.Remove(r);
-        CourseService.AddAudit(db, me.Id, "Delete", "Rubric", r.Id);
+        CourseService.AddAudit(db, me.Id, AuditActions.Delete, AuditEntities.Rubric, r.Id, description);
         await db.SaveChangesAsync(ct);
     }
 

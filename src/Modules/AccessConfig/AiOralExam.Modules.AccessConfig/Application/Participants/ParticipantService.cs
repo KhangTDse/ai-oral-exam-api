@@ -4,6 +4,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using AiOralExam.Modules.AccessConfig.Application.AuditLogs;
 using AiOralExam.Modules.AccessConfig.Application.Courses;
 using AiOralExam.Modules.AccessConfig.Contracts;
 using AiOralExam.Modules.AccessConfig.Domain;
@@ -100,18 +101,20 @@ public sealed class ParticipantService(AccessConfigDbContext db, ICurrentUser me
                 Status = ParticipantStatus.Registered
             }).ToList();
         db.Participants.AddRange(add);
-        CourseService.AddAudit(db, me.Id, "ImportStudents", "ExamSession", sid);
+        CourseService.AddAudit(db, me.Id, AuditActions.ImportParticipants, AuditEntities.ExamSession, sid,
+            $"{add.Count} participants imported, {skipped.Count} skipped");
         await db.SaveChangesAsync(ct);
         return new(add.Count, skipped.Count, skipped, await ListAsync(sid, ct));
     }
 
     public async Task RemoveAsync(Guid sid, Guid pid, CancellationToken ct)
     {
-        await Editable(sid, ct);
+        var session = await Editable(sid, ct);
         var p = await db.Participants.FirstOrDefaultAsync(x => x.Id == pid && x.ExamSessionId == sid, ct) ??
             throw new NotFoundException("participant_not_found", "Participant not found.");
+        var description = $"Removed participant from {session.Title}";
         db.Participants.Remove(p);
-        CourseService.AddAudit(db, me.Id, "RemoveParticipant", "ExamSession", sid);
+        CourseService.AddAudit(db, me.Id, AuditActions.RemoveParticipant, AuditEntities.ExamSession, sid, description);
         await db.SaveChangesAsync(ct);
     }
 }

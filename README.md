@@ -47,6 +47,8 @@ For an existing database, apply the role/code validation upgrade with
 The script reports any existing users that need correction before it installs the trigger.
 Fresh databases get this trigger automatically from `database/01_schema.sql`.
 
+For existing databases, also apply `database/04_audit_log_description.sql` to add the audit-log description column. Fresh databases get it from `database/01_schema.sql`.
+
 In Visual Studio: open `AiOralExam.sln`, set `AiOralExam.Api` as the startup project, pick the **http** profile and press F5.
 
 ### Try the M1 exam flow in Swagger
@@ -112,7 +114,9 @@ ai-oral-exam-api/
 ├── Directory.Packages.props         # NuGet versions declared once (Central Package Management)
 ├── database/
 │   ├── 01_schema.sql                # SOURCE OF TRUTH for the schema (16 tables)
-│   └── 02_seed.sql                  # demo data
+│   ├── 02_seed.sql                  # demo data
+│   ├── 03_user_role_code_constraint.sql # upgrade for existing databases
+│   └── 04_audit_log_description.sql # adds audit log descriptions to existing databases
 ├── src/
 │   ├── AiOralExam.Api/              # Host: Program.cs, Keycloak token validation, Swagger, CORS, error middleware
 │   ├── Shared/
@@ -172,6 +176,10 @@ ai-oral-exam-api/
 | GET | `/health` | – | |
 
 The `GET /api/exam-sessions` list includes `participantCount`, `takenCount` (attempts with `PendingReview` or `Finalized` status), and `toReviewCount` (attempts with `PendingReview` status). `PATCH /api/auth/me` accepts a body containing only `fullName` and returns the same profile shape as the GET endpoint.
+
+#### Audit logs
+
+`GET /api/audit-logs` (also available at `/api/admin/audit-logs`) is administrator-only. Its response includes a nullable `description` alongside the action, target entity/id, timestamp, and actor details. Actions are `Create`, `Update`, `Delete`, `Publish`, `Close`, `AssignLecturer`, `RemoveLecturer`, `ImportParticipants`, `RemoveParticipant`, `ResendSetupEmail`, and `UpdateOwnProfile`. Entity names are `User`, `Course`, `ExamSession`, `Question`, `Rubric`, and `AiServiceConfig`.
 
 AI service configuration responses include `hasApiKey`; the API never returns the API key or its ciphertext. When updating an existing configuration, omit `apiKey` or send it as blank/whitespace to keep the stored key. Creating a configuration (including the first `PUT /api/admin/ai-settings` for a service type) requires a nonblank `apiKey`; provide a new nonblank value to replace the key.
 
@@ -289,6 +297,7 @@ the secret in any `appsettings*.json` file.
 The team chose **`database/01_schema.sql` as the source of truth** (no EF migrations). To add or change a column or table:
 
 1. Edit `database/01_schema.sql` (and `02_seed.sql` if the demo data is affected).
+   - Run the applicable upgrade scripts on existing databases; `database/04_audit_log_description.sql` adds the audit-log description column.
 2. Update the entity in `Domain/` and the mapping in the `*DbContext.cs` of **the module that owns the table**.
    - PascalCase property names map to snake_case automatically: `TimeLimitPerAnswerSeconds` ↔ `time_limit_per_answer_seconds`.
    - Enums are stored as strings; their names must match the `CHECK` constraints in the SQL.

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
+using AiOralExam.Modules.AccessConfig.Application.AuditLogs;
 using AiOralExam.Modules.AccessConfig.Application.Courses;
 using AiOralExam.Modules.AccessConfig.Application.Keycloak;
 using AiOralExam.Modules.AccessConfig.Domain;
@@ -270,7 +271,8 @@ internal sealed class UserService(
         {
             await keycloak.AssignRealmRoleAsync(keycloakId, r.Role.ToString(), ct);
             db.Users.Add(u);
-            CourseService.AddAudit(db, me.Id, "Create", "User", u.Id);
+            CourseService.AddAudit(db, me.Id, AuditActions.Create, AuditEntities.User, u.Id,
+                $"User {u.Username} ({u.Role.Name})");
             await db.SaveChangesAsync(ct);
         }
         catch (Exception ex)
@@ -355,7 +357,8 @@ internal sealed class UserService(
                     ["role"] = ["The requested role is not configured."]
                 });
         ApplyUpdate(u, values, role);
-        CourseService.AddAudit(db, me.Id, "Update", "User", id);
+        CourseService.AddAudit(db, me.Id, AuditActions.Update, AuditEntities.User, id,
+            $"User {u.Username} ({u.Role.Name})");
         await db.SaveChangesAsync(ct);
         if (transaction is not null)
             await transaction.CommitAsync(ct);
@@ -371,7 +374,8 @@ internal sealed class UserService(
         if (!await keycloak.SendSetPasswordEmailAsync(user.Id, ct))
             throw new AppException(502, "setup_email_failed", "Keycloak could not send the password setup email.");
 
-        CourseService.AddAudit(db, actorId, "ResendSetupEmail", "User", id);
+        CourseService.AddAudit(db, actorId, AuditActions.ResendSetupEmail, AuditEntities.User, id,
+            $"User {user.Username}");
         await db.SaveChangesAsync(ct);
     }
 
@@ -395,7 +399,8 @@ internal sealed class UserService(
             });
 
         user.FullName = fullName;
-        CourseService.AddAudit(db, currentUserId, "UpdateOwnProfile", "User", user.Id);
+        CourseService.AddAudit(db, currentUserId, AuditActions.UpdateOwnProfile, AuditEntities.User, user.Id,
+            $"User {user.Username}");
         await db.SaveChangesAsync(ct);
     }
 
