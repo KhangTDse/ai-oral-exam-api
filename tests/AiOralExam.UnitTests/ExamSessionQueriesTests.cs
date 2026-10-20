@@ -58,6 +58,7 @@ public class ExamSessionQueriesTests
         Assert.Equal(1, result.ParticipantCount);
         Assert.Equal(2, result.TakenCount);
         Assert.Equal(1, result.ToReviewCount);
+        Assert.Equal(3, result.InProgressCount);
         Assert.Equal(1, interviewResults.CallCount);
         Assert.Equal(new[] { sessionId }, interviewResults.RequestedSessionIds);
     }
@@ -76,7 +77,7 @@ public class ExamSessionQueriesTests
             CallCount++;
             RequestedSessionIds = sessionIds.ToArray();
             return Task.FromResult<IReadOnlyList<AttemptCounts>>(
-                sessionIds.Select(id => new AttemptCounts(id, 2, 1)).ToList());
+                sessionIds.Select(id => new AttemptCounts(id, 2, 1, 3)).ToList());
         }
 
         public Task<IReadOnlyList<AttemptResult>> GetSessionResultsAsync(Guid examSessionId, CancellationToken ct = default)

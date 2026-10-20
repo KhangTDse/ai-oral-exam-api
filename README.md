@@ -175,7 +175,7 @@ ai-oral-exam-api/
 | GET | `/api/reports/exam-sessions/{id}/grade-sheet` | Lecturer, Admin | F6 (UTF-8 CSV) |
 | GET | `/health` | – | |
 
-The `GET /api/exam-sessions` list includes `participantCount`, `takenCount` (attempts with `PendingReview` or `Finalized` status), and `toReviewCount` (attempts with `PendingReview` status). `PATCH /api/auth/me` accepts a body containing only `fullName` and returns the same profile shape as the GET endpoint.
+The `GET /api/exam-sessions` list includes `participantCount`, `takenCount` (attempts with `PendingReview` or `Finalized` status), `toReviewCount` (attempts with `PendingReview` status), and `inProgressCount` (attempts with `InProgress` status). `PATCH /api/auth/me` accepts a body containing only `fullName` and returns the same profile shape as the GET endpoint.
 
 #### Audit logs
 
