@@ -177,6 +177,8 @@ ai-oral-exam-api/
 
 The `GET /api/exam-sessions` list includes `participantCount`, `takenCount` (attempts with `PendingReview` or `Finalized` status), `toReviewCount` (attempts with `PendingReview` status), and `inProgressCount` (attempts with `InProgress` status). `PATCH /api/auth/me` accepts a body containing only `fullName` and returns the same profile shape as the GET endpoint.
 
+Published exam sessions are automatically changed to `Closed` after `EndTime` by a background service that checks every 15 seconds. The end time is exclusive: a session is no longer open at the exact `EndTime`. Automatic closure is written to application logs; it does not create a user-attributed audit-log row because no user performs the background action.
+
 #### Audit logs
 
 `GET /api/audit-logs` (also available at `/api/admin/audit-logs`) is administrator-only. Its response includes a nullable `description` alongside the action, target entity/id, timestamp, and actor details. Actions are `Create`, `Update`, `Delete`, `Publish`, `Close`, `AssignLecturer`, `RemoveLecturer`, `ImportParticipants`, `RemoveParticipant`, `ResendSetupEmail`, and `UpdateOwnProfile`. Entity names are `User`, `Course`, `ExamSession`, `Question`, `Rubric`, and `AiServiceConfig`.
