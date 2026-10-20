@@ -1,5 +1,4 @@
 using AiOralExam.Modules.AccessConfig.Application.AuditLogs;
-using AiOralExam.Modules.AccessConfig.Application.AuditLogs;
 using AiOralExam.Modules.AccessConfig.Application.Participants;
 using AiOralExam.Modules.AccessConfig.Application.Rubrics;
 using AiOralExam.Modules.AccessConfig.Domain;

@@ -1,5 +1,4 @@
 using AiOralExam.Modules.Interview.Contracts;
-using AiOralExam.Modules.Interview.Contracts;
 using AiOralExam.Modules.Interview.Domain;
 using AiOralExam.Modules.Interview.Infrastructure;
 using Microsoft.EntityFrameworkCore;

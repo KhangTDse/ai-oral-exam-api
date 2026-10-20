@@ -1,5 +1,4 @@
 using AiOralExam.Modules.AccessConfig.Application.ExamSessions;
-using AiOralExam.Modules.AccessConfig.Application.ExamSessions;
 using AiOralExam.Modules.AccessConfig.Domain;
 using AiOralExam.Modules.AccessConfig.Infrastructure;
 using AiOralExam.Modules.Interview.Contracts;

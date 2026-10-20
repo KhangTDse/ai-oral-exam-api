@@ -1,5 +1,4 @@
 using AiOralExam.Modules.AccessConfig.Application.Keycloak;
-using AiOralExam.Modules.AccessConfig.Application.Keycloak;
 using AiOralExam.Modules.AccessConfig.Application.Users;
 using AiOralExam.Modules.AccessConfig.Application.AuditLogs;
 using AiOralExam.Modules.AccessConfig.Domain;
