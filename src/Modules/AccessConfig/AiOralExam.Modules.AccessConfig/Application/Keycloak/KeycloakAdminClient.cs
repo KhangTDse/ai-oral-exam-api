@@ -96,34 +96,25 @@ internal sealed class KeycloakAdminClient(
 
     public async Task<bool> SendSetPasswordEmailAsync(Guid userId, CancellationToken ct = default)
     {
-        try
+        var client = httpClientFactory.CreateClient(HttpClientName);
+        var token = await GetAccessTokenAsync(client, ct);
+        using var request = new HttpRequestMessage(HttpMethod.Put,
+            AdminUrl($"users/{userId:D}/execute-actions-email"))
         {
-            var client = httpClientFactory.CreateClient(HttpClientName);
-            var token = await GetAccessTokenAsync(client, ct);
-            using var request = new HttpRequestMessage(HttpMethod.Put,
-                AdminUrl($"users/{userId:D}/execute-actions-email"))
-            {
-                Content = JsonContent.Create(new[] { "UPDATE_PASSWORD" })
-            };
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-            using var response = await SendAsync(client, request, ct);
-            if (!response.IsSuccessStatusCode)
-            {
-                logger.LogWarning("Keycloak password setup email request failed for user {UserId} with status {StatusCode}.",
-                    userId, response.StatusCode);
-                return false;
-            }
-            return true;
+            Content = JsonContent.Create(new[] { "UPDATE_PASSWORD" })
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        using var response = await SendAsync(client, request, ct);
+        if (response.StatusCode == HttpStatusCode.Forbidden)
+        {
+            throw KeycloakAdminForbidden();
         }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        if (!response.IsSuccessStatusCode)
         {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Could not request a password setup email for Keycloak user {UserId}.", userId);
+            LogFailedResponse(response);
             return false;
         }
+        return true;
     }
 
     public async Task DeleteUserAsync(Guid userId, CancellationToken ct = default)

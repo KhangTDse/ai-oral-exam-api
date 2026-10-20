@@ -83,6 +83,14 @@ internal sealed class AiConfigService(AccessConfigDbContext db, ICurrentUser me,
         {
             x = await db.AiServiceConfigs.FindAsync([id.Value], ct) ??
                 throw new NotFoundException("ai_config_not_found", "AI service configuration not found.");
+            if (string.IsNullOrWhiteSpace(r.ApiKey)
+                && (!string.Equals(x.ProviderName.Trim(), r.ProviderName.Trim(), StringComparison.OrdinalIgnoreCase)
+                    || !string.Equals(x.EndpointUrl.Trim().TrimEnd('/'), r.EndpointUrl.Trim().TrimEnd('/'),
+                        StringComparison.OrdinalIgnoreCase)))
+                throw new ValidationException(new Dictionary<string, string[]>
+                {
+                    [nameof(r.ApiKey)] = ["A new API key is required when the provider or endpoint changes."]
+                });
         }
         if (r.IsActive)
         {

@@ -42,6 +42,78 @@ public class AiConfigServiceTests
     }
 
     [Fact]
+    public async Task Updating_provider_without_new_key_is_rejected()
+    {
+        await using var db = CreateDbContext();
+        var configuration = AddConfiguration(db, "stored-ciphertext");
+        await db.SaveChangesAsync();
+        var service = CreateService(db);
+
+        var exception = await Assert.ThrowsAsync<ValidationException>(() =>
+            service.SaveAsync(configuration.Id, CreateRequest(" ", provider: "Other Provider"), CancellationToken.None));
+
+        Assert.Equal("A new API key is required when the provider or endpoint changes.",
+            Assert.Single(exception.Details!["ApiKey"]));
+    }
+
+    [Fact]
+    public async Task Updating_endpoint_without_new_key_is_rejected()
+    {
+        await using var db = CreateDbContext();
+        var configuration = AddConfiguration(db, "stored-ciphertext");
+        await db.SaveChangesAsync();
+        var service = CreateService(db);
+
+        var exception = await Assert.ThrowsAsync<ValidationException>(() =>
+            service.SaveAsync(configuration.Id, CreateRequest(" ", endpoint: "https://other.test"), CancellationToken.None));
+
+        Assert.Equal("A new API key is required when the provider or endpoint changes.",
+            Assert.Single(exception.Details!["ApiKey"]));
+    }
+
+    [Fact]
+    public async Task Updating_provider_with_new_key_is_accepted_and_replaces_key()
+    {
+        await using var db = CreateDbContext();
+        var configuration = AddConfiguration(db, "stored-ciphertext");
+        await db.SaveChangesAsync();
+        var service = CreateService(db);
+
+        var result = await service.SaveAsync(
+            configuration.Id, CreateRequest("new-api-key", provider: "Other Provider"), CancellationToken.None);
+
+        Assert.NotEqual("stored-ciphertext", configuration.ApiKeyEncrypted);
+        Assert.True(result.HasApiKey);
+    }
+
+    [Fact]
+    public async Task Updating_same_provider_and_endpoint_with_blank_key_keeps_key()
+    {
+        await using var db = CreateDbContext();
+        var configuration = AddConfiguration(db, "stored-ciphertext");
+        await db.SaveChangesAsync();
+        var service = CreateService(db);
+
+        await service.SaveAsync(configuration.Id, CreateRequest(" "), CancellationToken.None);
+
+        Assert.Equal("stored-ciphertext", configuration.ApiKeyEncrypted);
+    }
+
+    [Fact]
+    public async Task Updating_case_and_trailing_slash_only_differences_keeps_key()
+    {
+        await using var db = CreateDbContext();
+        var configuration = AddConfiguration(db, "stored-ciphertext");
+        await db.SaveChangesAsync();
+        var service = CreateService(db);
+
+        await service.SaveAsync(configuration.Id,
+            CreateRequest(" ", provider: "pROVIDER", endpoint: "HTTPS://EXAMPLE.TEST/"), CancellationToken.None);
+
+        Assert.Equal("stored-ciphertext", configuration.ApiKeyEncrypted);
+    }
+
+    [Fact]
     public async Task Creating_configuration_with_blank_key_is_rejected()
     {
         await using var db = CreateDbContext();
@@ -84,8 +156,9 @@ public class AiConfigServiceTests
         return configuration;
     }
 
-    private static SaveAiServiceConfigRequest CreateRequest(string? apiKey)
-        => new(AiServiceType.STT, "Provider", "https://example.test", apiKey, SpeechLanguage.English);
+    private static SaveAiServiceConfigRequest CreateRequest(
+        string? apiKey, string provider = "Provider", string endpoint = "https://example.test")
+        => new(AiServiceType.STT, provider, endpoint, apiKey, SpeechLanguage.English);
 
     private static AiConfigService CreateService(AccessConfigDbContext db)
         => new(db, new TestCurrentUser(Guid.NewGuid()), new EphemeralDataProtectionProvider());

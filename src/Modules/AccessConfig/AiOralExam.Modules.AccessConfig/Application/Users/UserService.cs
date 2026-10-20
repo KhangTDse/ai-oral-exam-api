@@ -298,7 +298,16 @@ internal sealed class UserService(
             throw;
         }
 
-        var setupEmailSent = await keycloak.SendSetPasswordEmailAsync(keycloakId, ct);
+        var setupEmailSent = false;
+        try
+        {
+            setupEmailSent = await keycloak.SendSetPasswordEmailAsync(keycloakId, ct);
+        }
+        catch (AppException ex)
+        {
+            logger.LogWarning("Could not send a password setup email for user {UserId}; Keycloak error {ErrorCode}.",
+                keycloakId, ex.Code);
+        }
         return new CreatedUserDto(u.Id, u.FullName, u.Email, u.Username, u.Role.Name,
             u.StudentCode, u.LecturerCode, u.IsActive, setupEmailSent);
     }

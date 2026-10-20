@@ -1,4 +1,5 @@
 using AiOralExam.Modules.AccessConfig.Application.Keycloak;
+using AiOralExam.Modules.AccessConfig.Application.Keycloak;
 using AiOralExam.Modules.AccessConfig.Application.Users;
 using AiOralExam.Modules.AccessConfig.Application.AuditLogs;
 using AiOralExam.Modules.AccessConfig.Domain;
@@ -43,6 +44,23 @@ public class UserCreationTests
     {
         await using var db = await CreateDatabaseAsync();
         var keycloak = new FakeKeycloakAdminClient { EmailSent = false };
+        var service = CreateService(db, keycloak);
+
+        var result = await service.CreateAsync(Request(), CancellationToken.None);
+
+        Assert.False(result.SetupEmailSent);
+        Assert.Single(await db.Users.ToListAsync());
+        Assert.Single(await db.AuditLogs.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Create_keeps_created_user_and_audit_when_setup_email_throws_app_exception()
+    {
+        await using var db = await CreateDatabaseAsync();
+        var keycloak = new FakeKeycloakAdminClient
+        {
+            EmailException = new AppException(502, "keycloak_admin_client_not_configured", "Not configured.")
+        };
         var service = CreateService(db, keycloak);
 
         var result = await service.CreateAsync(Request(), CancellationToken.None);
@@ -152,6 +170,25 @@ public class UserCreationTests
         Assert.Equal(AuditActions.ResendSetupEmail, audit.Action);
         Assert.Equal(AuditEntities.User, audit.TargetEntity);
         Assert.Equal(KeycloakUserId, audit.TargetId);
+        Assert.Equal(["email"], keycloak.Calls);
+    }
+
+    [Fact]
+    public async Task Resend_setup_email_propagates_client_app_exception_without_audit()
+    {
+        await using var db = await CreateDatabaseAsync();
+        await AddUserAsync(db);
+        var keycloak = new FakeKeycloakAdminClient
+        {
+            EmailException = new AppException(502, "keycloak_admin_client_not_configured", "Not configured.")
+        };
+        var service = CreateService(db, keycloak);
+
+        var exception = await Assert.ThrowsAsync<AppException>(() =>
+            service.ResendSetupEmailAsync(KeycloakUserId, CurrentUserId, CancellationToken.None));
+
+        Assert.Equal("keycloak_admin_client_not_configured", exception.Code);
+        Assert.Empty(await db.AuditLogs.ToListAsync());
         Assert.Equal(["email"], keycloak.Calls);
     }
 
@@ -330,6 +367,7 @@ public class UserCreationTests
         public List<string> Calls { get; } = [];
         public Exception? CreateException { get; init; }
         public Exception? AssignException { get; init; }
+        public Exception? EmailException { get; init; }
         public bool EmailSent { get; init; } = true;
 
         public Task<Guid> CreateUserAsync(
@@ -352,6 +390,8 @@ public class UserCreationTests
         public Task<bool> SendSetPasswordEmailAsync(Guid userId, CancellationToken ct = default)
         {
             Calls.Add("email");
+            if (EmailException is not null)
+                throw EmailException;
             return Task.FromResult(EmailSent);
         }
 

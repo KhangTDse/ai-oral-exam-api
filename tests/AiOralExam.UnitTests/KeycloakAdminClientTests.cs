@@ -139,20 +139,59 @@ public class KeycloakAdminClientTests
             "/protocol/openid-connect/token", StringComparison.Ordinal)));
     }
 
-    [Theory]
-    [InlineData(HttpStatusCode.NoContent, true)]
-    [InlineData(HttpStatusCode.BadGateway, false)]
-    public async Task Setup_email_request_reports_keycloak_acceptance(HttpStatusCode statusCode, bool expected)
+    [Fact]
+    public async Task Setup_email_request_returns_false_for_server_error()
     {
         var handler = new RecordingHandler(request => request.RequestUri!.AbsolutePath.EndsWith(
             "/protocol/openid-connect/token", StringComparison.Ordinal)
             ? TokenResponse()
-            : new HttpResponseMessage(statusCode));
+            : new HttpResponseMessage(HttpStatusCode.InternalServerError));
         var client = CreateClient(handler);
 
         var result = await client.SendSetPasswordEmailAsync(Guid.NewGuid());
 
-        Assert.Equal(expected, result);
+        Assert.False(result);
+    }
+
+    [Fact]
+    public async Task Setup_email_request_returns_true_for_no_content()
+    {
+        var handler = new RecordingHandler(request => request.RequestUri!.AbsolutePath.EndsWith(
+            "/protocol/openid-connect/token", StringComparison.Ordinal)
+            ? TokenResponse()
+            : new HttpResponseMessage(HttpStatusCode.NoContent));
+        var client = CreateClient(handler);
+
+        var result = await client.SendSetPasswordEmailAsync(Guid.NewGuid());
+
+        Assert.True(result);
+    }
+
+    [Fact]
+    public async Task Setup_email_request_throws_admin_forbidden_for_forbidden_response()
+    {
+        var handler = new RecordingHandler(request => request.RequestUri!.AbsolutePath.EndsWith(
+            "/protocol/openid-connect/token", StringComparison.Ordinal)
+            ? TokenResponse()
+            : new HttpResponseMessage(HttpStatusCode.Forbidden));
+        var client = CreateClient(handler);
+
+        var exception = await Assert.ThrowsAsync<AppException>(() =>
+            client.SendSetPasswordEmailAsync(Guid.NewGuid()));
+
+        Assert.Equal("keycloak_admin_forbidden", exception.Code);
+    }
+
+    [Fact]
+    public async Task Setup_email_request_propagates_token_configuration_error()
+    {
+        var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.Unauthorized));
+        var client = CreateClient(handler);
+
+        var exception = await Assert.ThrowsAsync<AppException>(() =>
+            client.SendSetPasswordEmailAsync(Guid.NewGuid()));
+
+        Assert.Equal("keycloak_admin_client_not_configured", exception.Code);
     }
 
     [Fact]
