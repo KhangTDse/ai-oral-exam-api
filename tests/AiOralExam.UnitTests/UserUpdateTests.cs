@@ -1,10 +1,16 @@
+using AiOralExam.Modules.AccessConfig.Application.AuditLogs;
+using AiOralExam.Modules.AccessConfig.Application.AuditLogs;
+using AiOralExam.Modules.AccessConfig.Application.Keycloak;
 using AiOralExam.Modules.AccessConfig.Application.Users;
 using AiOralExam.Modules.AccessConfig.Controllers;
 using AiOralExam.Modules.AccessConfig.Domain;
+using AiOralExam.Modules.AccessConfig.Infrastructure;
 using AiOralExam.SharedKernel.Errors;
 using AiOralExam.SharedKernel.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace AiOralExam.UnitTests;
 
@@ -149,6 +155,68 @@ public class UserUpdateTests
     }
 
     [Fact]
+    public async Task Role_change_writes_only_a_change_role_entry()
+    {
+        var audits = await UpdateAndGetAuditLogsAsync(
+            UserRole.Student, "S001", null, true,
+            new UpdateUserRequest("Existing User", null, "L001", true, UserRole.Lecturer));
+
+        var audit = Assert.Single(audits);
+        Assert.Equal(AuditActions.ChangeRole, audit.Action);
+        Assert.Equal("User user: role Student -> Lecturer", audit.Description);
+    }
+
+    [Fact]
+    public async Task Deactivation_writes_a_deactivate_entry()
+    {
+        var audits = await UpdateAndGetAuditLogsAsync(
+            UserRole.Student, "S001", null, true,
+            new UpdateUserRequest("Existing User", "S001", null, false));
+
+        var audit = Assert.Single(audits);
+        Assert.Equal(AuditActions.Deactivate, audit.Action);
+        Assert.Equal("User user: deactivated", audit.Description);
+    }
+
+    [Fact]
+    public async Task Reactivation_writes_a_reactivate_entry()
+    {
+        var audits = await UpdateAndGetAuditLogsAsync(
+            UserRole.Student, "S001", null, false,
+            new UpdateUserRequest("Existing User", "S001", null, true));
+
+        var audit = Assert.Single(audits);
+        Assert.Equal(AuditActions.Reactivate, audit.Action);
+        Assert.Equal("User user: reactivated", audit.Description);
+    }
+
+    [Fact]
+    public async Task Name_change_writes_an_update_entry()
+    {
+        var audits = await UpdateAndGetAuditLogsAsync(
+            UserRole.Student, "S001", null, true,
+            new UpdateUserRequest("Updated User", "S001", null, true));
+
+        var audit = Assert.Single(audits);
+        Assert.Equal(AuditActions.Update, audit.Action);
+        Assert.Equal("User user (Student)", audit.Description);
+    }
+
+    [Fact]
+    public async Task Role_change_with_name_change_writes_change_role_and_update_entries()
+    {
+        var audits = await UpdateAndGetAuditLogsAsync(
+            UserRole.Student, "S001", null, true,
+            new UpdateUserRequest("Updated User", null, "L001", true, UserRole.Lecturer));
+
+        Assert.Equal(
+            new[] { AuditActions.ChangeRole, AuditActions.Update }.OrderBy(action => action),
+            audits.Select(audit => audit.Action).OrderBy(action => action));
+        Assert.Contains(audits, audit => audit.Description == "User user: role Student -> Lecturer");
+        Assert.Contains(audits, audit => audit.Description == "User user (Lecturer)");
+    }
+
+    [Fact]
     public void Users_api_and_service_do_not_expose_a_hard_delete()
     {
         Assert.DoesNotContain(typeof(UsersController).GetMethods(),
@@ -166,6 +234,42 @@ public class UserUpdateTests
     }
 
     private static Role RoleFor(UserRole role) => new() { Id = Guid.NewGuid(), Name = role.ToString() };
+
+    private static async Task<AuditLog[]> UpdateAndGetAuditLogsAsync(
+        UserRole initialRole,
+        string? studentCode,
+        string? lecturerCode,
+        bool isActive,
+        UpdateUserRequest request)
+    {
+        var options = new DbContextOptionsBuilder<AccessConfigDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        await using var db = new AccessConfigDbContext(options);
+        var roles = Enum.GetValues<UserRole>().Select(RoleFor).ToArray();
+        var role = roles.Single(x => x.Name == initialRole.ToString());
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            RoleId = role.Id,
+            Role = role,
+            Username = "user",
+            Email = "user@example.test",
+            StudentCode = studentCode,
+            LecturerCode = lecturerCode,
+            FullName = "Existing User",
+            IsActive = isActive
+        };
+        db.Roles.AddRange(roles);
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+
+        var service = new UserService(db, new TestCurrentUser(Guid.NewGuid()), TimeProvider.System,
+            new StubKeycloakAdminClient(), NullLogger<UserService>.Instance);
+        await service.UpdateAsync(user.Id, request, CancellationToken.None);
+
+        return db.AuditLogs.ToArray();
+    }
 
     private static string? UpdateConflictCode(
         User user, Guid currentUserId, UpdateUserRequest request, params User[] administrators)
@@ -192,5 +296,28 @@ public class UserUpdateTests
             FullName = "Existing User",
             IsActive = true
         };
+    }
+
+    private sealed class TestCurrentUser(Guid id) : ICurrentUser
+    {
+        public bool IsAuthenticated => true;
+        public Guid Id => id;
+        public string? Role => Roles.Administrator;
+        public bool IsInRole(string role) => role == Roles.Administrator;
+    }
+
+    private sealed class StubKeycloakAdminClient : IKeycloakAdminClient
+    {
+        public Task<Guid> CreateUserAsync(string username, string email, string firstName, string lastName,
+            CancellationToken ct = default) => Task.FromResult(Guid.NewGuid());
+
+        public Task AssignRealmRoleAsync(Guid userId, string roleName, CancellationToken ct = default)
+            => Task.CompletedTask;
+
+        public Task<bool> SendSetPasswordEmailAsync(Guid userId, CancellationToken ct = default)
+            => Task.FromResult(true);
+
+        public Task DeleteUserAsync(Guid userId, CancellationToken ct = default)
+            => Task.CompletedTask;
     }
 }

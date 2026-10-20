@@ -356,9 +356,30 @@ internal sealed class UserService(
                 {
                     ["role"] = ["The requested role is not configured."]
                 });
+        var oldRoleName = u.Role.Name;
+        var oldIsActive = u.IsActive;
+        var oldFullName = u.FullName;
+        var oldStudentCode = u.StudentCode;
+        var oldLecturerCode = u.LecturerCode;
         ApplyUpdate(u, values, role);
-        CourseService.AddAudit(db, me.Id, AuditActions.Update, AuditEntities.User, id,
-            $"User {u.Username} ({u.Role.Name})");
+        var roleChanged = oldRoleName != u.Role.Name;
+        var deactivated = oldIsActive && !u.IsActive;
+        var reactivated = !oldIsActive && u.IsActive;
+        var profileChanged = oldFullName != u.FullName
+            || (!roleChanged && (oldStudentCode != u.StudentCode || oldLecturerCode != u.LecturerCode));
+
+        if (roleChanged)
+            CourseService.AddAudit(db, me.Id, AuditActions.ChangeRole, AuditEntities.User, id,
+                $"User {u.Username}: role {oldRoleName} -> {u.Role.Name}");
+        if (deactivated)
+            CourseService.AddAudit(db, me.Id, AuditActions.Deactivate, AuditEntities.User, id,
+                $"User {u.Username}: deactivated");
+        if (reactivated)
+            CourseService.AddAudit(db, me.Id, AuditActions.Reactivate, AuditEntities.User, id,
+                $"User {u.Username}: reactivated");
+        if (profileChanged || (!roleChanged && !deactivated && !reactivated))
+            CourseService.AddAudit(db, me.Id, AuditActions.Update, AuditEntities.User, id,
+                $"User {u.Username} ({u.Role.Name})");
         await db.SaveChangesAsync(ct);
         if (transaction is not null)
             await transaction.CommitAsync(ct);
