@@ -99,7 +99,7 @@ public sealed class QuestionBankServiceTests
     }
 
     [Fact]
-    public async Task Import_rejects_content_already_in_the_course()
+    public async Task Import_reports_existing_content_duplicates_by_row()
     {
         await using var db = CreateDbContext();
         var data = await SeedAsync(db);
@@ -108,14 +108,34 @@ public sealed class QuestionBankServiceTests
             new CreateQuestionBankItemRequest("Topic", BloomLevel.Apply, "Same question"),
             CancellationToken.None);
 
-        var error = await Assert.ThrowsAsync<ConflictException>(() => service.ImportAsync(data.Course.Id,
+        var error = await Assert.ThrowsAsync<ValidationException>(() => service.ImportAsync(data.Course.Id,
             new ImportQuestionBankRequest([
-                new ImportQuestionBankItem("Topic", BloomLevel.Apply, " same QUESTION ")
+                new ImportQuestionBankItem("Topic", BloomLevel.Apply, " same QUESTION "),
+                new ImportQuestionBankItem("Topic", BloomLevel.Apply, " SAME QUESTION ")
             ]), CancellationToken.None));
 
-        Assert.Equal("question_bank_duplicate", error.Code);
+        Assert.Contains("items[0].content", error.Details!.Keys);
+        Assert.Contains("items[1].content", error.Details.Keys);
         Assert.Single(db.QuestionBankItems);
         Assert.Single(db.AuditLogs);
+    }
+
+    [Fact]
+    public async Task List_returns_compact_items_while_detail_keeps_revision_history()
+    {
+        await using var db = CreateDbContext();
+        var data = await SeedAsync(db);
+        var service = new QuestionBankService(db, new TestCurrentUser(data.Lecturer.Id));
+        var created = await service.CreateAsync(data.Course.Id,
+            new CreateQuestionBankItemRequest("Topic", BloomLevel.Apply, "Question"),
+            CancellationToken.None);
+
+        var listed = Assert.Single(await service.ListAsync(data.Course.Id, null, CancellationToken.None));
+        var detailed = await service.GetAsync(data.Course.Id, created.Id, CancellationToken.None);
+
+        Assert.Equal(created.Id, listed.Id);
+        Assert.Equal("Question", listed.Content);
+        Assert.Single(detailed.Revisions);
     }
 
     [Fact]

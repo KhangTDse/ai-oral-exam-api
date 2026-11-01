@@ -392,7 +392,7 @@ the secret in any `appsettings*.json` file.
 The team chose **`database/01_schema.sql` as the source of truth** (no EF migrations). To add or change a column or table:
 
 1. Edit `database/01_schema.sql` (and `02_seed.sql` if the demo data is affected).
-   - Run the applicable forward-only upgrade scripts on existing databases; `database/04_audit_log_description.sql` adds the audit-log description column, `database/06_ai_evaluation_state.sql` adds durable AI state, `database/07_question_bank.sql` adds the F1 bank, and `database/08_course_materials.sql` adds private material/chunk storage.
+   - Run the applicable forward-only upgrade scripts on existing databases; `database/04_audit_log_description.sql` adds the audit-log description column, `database/06_ai_evaluation_state.sql` adds durable AI state, `database/07_question_bank.sql` adds the F1 bank, `database/08_course_materials.sql` adds private material/chunk storage, and `database/13_f1_question_bank_content_unique.sql` adds course-scoped normalized-content uniqueness.
 2. Update the entity in `Domain/` and the mapping in the `*DbContext.cs` of **the module that owns the table**.
    - PascalCase property names map to snake_case automatically: `TimeLimitPerAnswerSeconds` ↔ `time_limit_per_answer_seconds`.
    - Enums are stored as strings; their names must match the `CHECK` constraints in the SQL.
@@ -441,6 +441,28 @@ The upgrade is transactional. Its regular index build may briefly block writes; 
 dotnet build
 dotnet test
 ```
+
+The PostgreSQL concurrency tests are skipped by default. To run them, provision a
+dedicated disposable database named `aives_f1_concurrency_test`, apply
+`database/01_schema.sql` and `database/02_seed.sql` in schema `fresh`, and set:
+
+```text
+AIVES_F1A1_CONCURRENCY_CONNECTION=Host=localhost;Port=5432;Database=aives_f1_concurrency_test;Username=...;Password=...;Search Path=fresh
+AIVES_F1A1_CONCURRENCY_DISPOSABLE_CONFIRM=YES
+```
+
+Then run:
+
+```sh
+dotnet test tests/AiOralExam.UnitTests/AiOralExam.UnitTests.csproj --filter "FullyQualifiedName~Postgres"
+```
+
+Never point these destructive-capable test fixtures at a shared or production
+database. CI creates a disposable PostgreSQL database, verifies the forward
+migration, runs the concurrency tests, and validates a short-lived
+Keycloak-issued token against a PostgreSQL-backed API endpoint using a
+CI-created service account. The public realm clients' password grants remain
+disabled.
 
 Current unit tests cover the attempt state machine, deterministic mock AI,
 AI output validation/retry errors, deterministic question-generation citations,

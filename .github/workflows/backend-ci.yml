@@ -25,3 +25,97 @@ jobs:
 
       - name: Build and test
         run: dotnet test AiOralExam.sln --configuration Release --no-restore
+
+  postgres-keycloak-contract:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: aives_f1_concurrency_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d aives_f1_concurrency_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: dotnet restore AiOralExam.sln
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y postgresql-client
+
+      - name: Initialize isolated PostgreSQL schema
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -d aives_f1_concurrency_test -v ON_ERROR_STOP=1 -c "CREATE SCHEMA fresh"
+          PGOPTIONS="-c search_path=fresh" psql -h localhost -U postgres -d aives_f1_concurrency_test -v ON_ERROR_STOP=1 -f database/01_schema.sql
+          PGOPTIONS="-c search_path=fresh" psql -h localhost -U postgres -d aives_f1_concurrency_test -v ON_ERROR_STOP=1 -f database/02_seed.sql
+
+      - name: Verify question-bank upgrade migration
+        env:
+          PGPASSWORD: postgres
+        run: |
+          PGOPTIONS="-c search_path=fresh" psql -h localhost -U postgres -d aives_f1_concurrency_test -v ON_ERROR_STOP=1 -c "DROP INDEX fresh.ux_question_bank_course_normalized_content; ALTER TABLE fresh.question_bank_items DROP COLUMN normalized_content"
+          PGOPTIONS="-c search_path=fresh" psql -h localhost -U postgres -d aives_f1_concurrency_test -v ON_ERROR_STOP=1 -c "INSERT INTO question_bank_items (course_id, topic, bloom, content, origin, status, created_by) SELECT (SELECT id FROM courses ORDER BY id LIMIT 1), 'CI migration collision', 'Remember', 'CI migration collision content', 'Manual', 'Draft', (SELECT id FROM users WHERE role_id = (SELECT id FROM roles WHERE name = 'Lecturer') ORDER BY id LIMIT 1) FROM generate_series(1, 2)"
+          if output=$(psql -h localhost -U postgres -d aives_f1_concurrency_test -v ON_ERROR_STOP=1 -v app_schema=fresh -f database/13_f1_question_bank_content_unique.sql 2>&1); then
+            echo "Migration unexpectedly accepted duplicate legacy content."
+            exit 1
+          fi
+          printf '%s\n' "$output" | grep -q "Resolve existing normalized question-bank content duplicates"
+          PGOPTIONS="-c search_path=fresh" psql -h localhost -U postgres -d aives_f1_concurrency_test -v ON_ERROR_STOP=1 -c "DELETE FROM question_bank_items WHERE content = 'CI migration collision content'"
+          psql -h localhost -U postgres -d aives_f1_concurrency_test -v ON_ERROR_STOP=1 -v app_schema=fresh -f database/13_f1_question_bank_content_unique.sql
+
+      - name: Start disposable Keycloak realm
+        run: |
+          bootstrap_password="$(openssl rand -hex 32)"
+          echo "::add-mask::$bootstrap_password"
+          echo "KEYCLOAK_CI_BOOTSTRAP_PASSWORD=$bootstrap_password" >> "$GITHUB_ENV"
+          docker run --detach --name aives-keycloak-ci --publish 8080:8080 \
+            --env KC_BOOTSTRAP_ADMIN_USERNAME=ci-admin \
+            --env "KC_BOOTSTRAP_ADMIN_PASSWORD=$bootstrap_password" \
+            --env KC_HEALTH_ENABLED=true \
+            --env KC_HOSTNAME=http://localhost:8080 \
+            --volume "$GITHUB_WORKSPACE/keycloak/aives-realm.json:/opt/keycloak/data/import/aives-realm.json:ro" \
+            quay.io/keycloak/keycloak:26.8.0 start-dev --import-realm
+
+      - name: Verify Keycloak realm discovery
+        run: |
+          for attempt in {1..60}; do
+            if curl --fail --silent --show-error http://localhost:8080/realms/aives/.well-known/openid-configuration \
+                | jq --exit-status '.issuer == "http://localhost:8080/realms/aives"' >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs aives-keycloak-ci
+          exit 1
+
+      - name: Build API for live authentication smoke test
+        run: dotnet build src/AiOralExam.Api/AiOralExam.Api.csproj --configuration Release --no-restore
+
+      - name: Verify Keycloak-issued token against PostgreSQL-backed API
+        run: bash .github/scripts/postgres-keycloak-api-smoke.sh
+
+      - name: Run PostgreSQL concurrency tests
+        env:
+          AIVES_F1A1_CONCURRENCY_CONNECTION: Host=localhost;Port=5432;Database=aives_f1_concurrency_test;Username=postgres;Password=postgres;Search Path=fresh
+          AIVES_F1A1_CONCURRENCY_DISPOSABLE_CONFIRM: YES
+        run: >-
+          dotnet test tests/AiOralExam.UnitTests/AiOralExam.UnitTests.csproj
+          --configuration Release --no-restore --filter "FullyQualifiedName~Postgres"

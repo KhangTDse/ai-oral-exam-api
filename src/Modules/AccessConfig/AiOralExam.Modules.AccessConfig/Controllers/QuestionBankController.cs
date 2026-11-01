@@ -13,7 +13,7 @@ namespace AiOralExam.Modules.AccessConfig.Controllers;
 public sealed class QuestionBankController(IQuestionBankService service) : ControllerBase
 {
     [HttpGet]
-    public Task<IReadOnlyList<QuestionBankItemDto>> List(Guid courseId, QuestionBankStatusFilter? status, CancellationToken ct) =>
+    public Task<IReadOnlyList<QuestionBankListItemDto>> List(Guid courseId, QuestionBankStatusFilter? status, CancellationToken ct) =>
         service.ListAsync(courseId, status, ct);
 
     [HttpGet("{itemId:guid}")]

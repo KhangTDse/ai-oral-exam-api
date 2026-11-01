@@ -169,6 +169,7 @@ CREATE TABLE question_bank_items (
     topic       VARCHAR(200) NOT NULL,
     bloom       VARCHAR(30) NOT NULL CHECK (bloom IN ('Remember', 'Understand', 'Apply', 'Analyze')),
     content     TEXT NOT NULL,
+    normalized_content TEXT GENERATED ALWAYS AS (lower(btrim(content))) STORED,
     origin      VARCHAR(20) NOT NULL CHECK (origin IN ('Manual', 'Import', 'Ai')),
     status      VARCHAR(20) NOT NULL DEFAULT 'Draft' CHECK (status IN ('Draft', 'Approved', 'Rejected', 'Archived')),
     created_by  UUID NOT NULL REFERENCES users(id),
@@ -176,6 +177,8 @@ CREATE TABLE question_bank_items (
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX ix_question_bank_course_status ON question_bank_items(course_id, status);
+CREATE UNIQUE INDEX ux_question_bank_course_normalized_content
+    ON question_bank_items(course_id, normalized_content);
 
 CREATE TABLE question_bank_revisions (
     id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),

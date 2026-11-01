@@ -8,6 +8,7 @@ using AiOralExam.Modules.AccessConfig.Infrastructure;
 using AiOralExam.SharedKernel.Errors;
 using AiOralExam.SharedKernel.Security;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace AiOralExam.Modules.AccessConfig.Application.QuestionBank;
 
@@ -15,13 +16,29 @@ internal sealed class QuestionBankService(
     AccessConfigDbContext db,
     ICurrentUser currentUser) : IQuestionBankService
 {
-    public async Task<IReadOnlyList<QuestionBankItemDto>> ListAsync(Guid courseId, QuestionBankStatusFilter? status, CancellationToken ct)
+    public async Task<IReadOnlyList<QuestionBankListItemDto>> ListAsync(Guid courseId, QuestionBankStatusFilter? status, CancellationToken ct)
     {
         await EnsureCourseAccessAsync(courseId, ct);
-        var query = db.QuestionBankItems.AsNoTracking().Include(x => x.Revisions).Where(x => x.CourseId == courseId);
+        var query = db.QuestionBankItems.AsNoTracking().Where(x => x.CourseId == courseId);
         if (status is not null)
             query = query.Where(x => x.Status == ToStatus(status.Value));
-        return (await query.OrderByDescending(x => x.UpdatedAt).ToListAsync(ct)).Select(ToDto).ToList();
+        var items = await query.OrderByDescending(x => x.UpdatedAt)
+            .Select(x => new
+            {
+                x.Id,
+                x.CourseId,
+                x.Topic,
+                x.Bloom,
+                x.Content,
+                x.Origin,
+                x.Status,
+                x.CreatedAt,
+                x.UpdatedAt
+            })
+            .ToListAsync(ct);
+        return items.Select(x => new QuestionBankListItemDto(
+            x.Id, x.CourseId, x.Topic, x.Bloom, x.Content, x.Origin.ToString(), x.Status.ToString(),
+            x.CreatedAt, x.UpdatedAt)).ToList();
     }
 
     public async Task<QuestionBankItemDto> GetAsync(Guid courseId, Guid itemId, CancellationToken ct)
@@ -38,7 +55,7 @@ internal sealed class QuestionBankService(
         var item = NewItem(courseId, request.Topic, request.Bloom, request.Content, QuestionBankOrigin.Manual, null);
         db.QuestionBankItems.Add(item);
         AddAudit(AuditActions.Create, item.Id, $"Manual question bank item in course {courseId}");
-        await db.SaveChangesAsync(ct);
+        await SaveChangesWithDuplicateConflictAsync(ct);
         return ToDto(item);
     }
 
@@ -65,24 +82,33 @@ internal sealed class QuestionBankService(
         }
         if (errors.Count > 0) throw new ValidationException(errors);
 
-        var duplicateRows = items.Select((item, index) => (Content: NormalizeContent(item.Content), Index: index))
-            .GroupBy(x => x.Content, StringComparer.OrdinalIgnoreCase)
+        var normalizedItems = await NormalizeContentForDatabaseAsync(items.Select(x => x.Content), ct);
+        var duplicateRows = normalizedItems.Select((content, index) => (Content: content, Index: index))
+            .GroupBy(x => x.Content, StringComparer.Ordinal)
             .Where(group => group.Count() > 1)
             .SelectMany(group => group.Select(row => row.Index));
         foreach (var index in duplicateRows)
             errors[$"items[{index}].content"] = ["Question content must be unique within the import batch."];
         if (errors.Count > 0) throw new ValidationException(errors);
 
-        var existing = await db.QuestionBankItems.Where(x => x.CourseId == courseId)
-            .Select(x => x.Content).ToListAsync(ct);
-        var existingContent = existing.Select(NormalizeContent).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        if (items.Any(x => existingContent.Contains(NormalizeContent(x.Content))))
-            throw new ConflictException("question_bank_duplicate", "A question with the same content already exists in this course.");
+        var existingContent = db.Database.ProviderName == "Microsoft.EntityFrameworkCore.InMemory"
+            ? (await db.QuestionBankItems.Where(x => x.CourseId == courseId)
+                .Select(x => x.Content).ToListAsync(ct))
+                .Select(x => x.Trim().ToLowerInvariant()).ToHashSet(StringComparer.Ordinal)
+            : (await db.QuestionBankItems.Where(x => x.CourseId == courseId)
+                .Select(x => x.NormalizedContent).ToListAsync(ct))
+                .ToHashSet(StringComparer.Ordinal);
+        for (var index = 0; index < items.Count; index++)
+        {
+            if (existingContent.Contains(normalizedItems[index]))
+                errors[$"items[{index}].content"] = ["Question content already exists in this course."];
+        }
+        if (errors.Count > 0) throw new ValidationException(errors);
 
         var imported = items.Select(x => NewItem(courseId, x.Topic, x.Bloom, x.Content, QuestionBankOrigin.Import, null)).ToList();
         db.QuestionBankItems.AddRange(imported);
         foreach (var item in imported) AddAudit(AuditActions.Create, item.Id, $"Imported question bank item in course {courseId}");
-        await db.SaveChangesAsync(ct);
+        await SaveChangesWithDuplicateConflictAsync(ct);
         return imported.Select(ToDto).ToList();
     }
 
@@ -100,7 +126,7 @@ internal sealed class QuestionBankService(
         item.UpdatedAt = DateTime.UtcNow;
         AddRevision(item, null);
         AddAudit(AuditActions.Update, item.Id, "Updated Draft question bank item");
-        await db.SaveChangesAsync(ct);
+        await SaveChangesWithDuplicateConflictAsync(ct);
         return ToDto(item);
     }
 
@@ -141,7 +167,7 @@ internal sealed class QuestionBankService(
             JsonSerializer.Serialize(new { d.PlatformRubricVersionId, d.Citations, SourceMaterialIds = sourceMaterialIds ?? Array.Empty<Guid>() }), d.DraftId)).ToList();
         db.QuestionBankItems.AddRange(items);
         foreach (var item in items) AddAudit(AuditActions.Create, item.Id, "AI generated Draft question bank item");
-        await db.SaveChangesAsync(ct);
+        await SaveChangesWithDuplicateConflictAsync(ct);
         return items.Select(ToDto).ToList();
     }
 
@@ -252,6 +278,39 @@ internal sealed class QuestionBankService(
     private void AddAudit(string action, Guid id, string description) =>
         CourseService.AddAudit(db, currentUser.Id, action, AuditEntities.QuestionBankItem, id, description);
 
+    private async Task<List<string>> NormalizeContentForDatabaseAsync(IEnumerable<string> contents, CancellationToken ct)
+    {
+        var values = contents.Select(x => x.Trim()).ToArray();
+        if (db.Database.ProviderName == "Microsoft.EntityFrameworkCore.InMemory")
+            return values.Select(x => x.Trim().ToLowerInvariant()).ToList();
+
+        return await db.Database.SqlQueryRaw<string>(
+            """
+            SELECT lower(btrim(input.content)) AS "Value"
+            FROM unnest({0}::text[]) WITH ORDINALITY AS input(content, ordinality)
+            ORDER BY input.ordinality
+            """,
+            values).ToListAsync(ct);
+    }
+
+    private async Task SaveChangesWithDuplicateConflictAsync(CancellationToken ct)
+    {
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException
+        {
+            SqlState: PostgresErrorCodes.UniqueViolation,
+            ConstraintName: "ux_question_bank_course_normalized_content"
+        })
+        {
+            throw new ConflictException(
+                "question_bank_duplicate",
+                "A question with the same content already exists in this course.");
+        }
+    }
+
     private static void ValidateText(string topic, string content)
     {
         var errors = new Dictionary<string, string[]>();
@@ -275,8 +334,6 @@ internal sealed class QuestionBankService(
                 [key] = ["Bloom must be Remember, Understand, Apply, or Analyze."]
             });
     }
-
-    private static string NormalizeContent(string content) => content.Trim();
 
     private static QuestionBankStatus ToStatus(QuestionBankStatusFilter filter) => (QuestionBankStatus)filter;
 

@@ -86,6 +86,70 @@ public sealed class QuestionBankHttpContractTests
     }
 
     [Fact]
+    public async Task Import_reports_existing_content_duplicates_by_row()
+    {
+        using var factory = new ApiTestFactory().AuthenticateAs(Ids.Lecturer, Roles.Lecturer);
+        await SeedAsync(factory);
+        using var client = factory.CreateClient();
+
+        using var createResponse = await client.PostAsJsonAsync(
+            $"/api/courses/{Ids.Course}/question-bank",
+            new { topic = "Databases", bloom = "Remember", content = "Existing question" });
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+
+        using var response = await client.PostAsJsonAsync(
+            $"/api/courses/{Ids.Course}/question-bank/import",
+            new
+            {
+                items = new[]
+                {
+                    new { topic = "Databases", bloom = "Remember", content = " existing QUESTION " },
+                    new { topic = "Databases", bloom = "Remember", content = "EXISTING QUESTION" }
+                }
+            });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var error = await response.Content.ReadFromJsonAsync<ApiError>();
+        Assert.NotNull(error);
+        Assert.Equal("validation_failed", error.Code);
+        Assert.Contains("items[0].content", error.Details!.Keys);
+        Assert.Contains("items[1].content", error.Details.Keys);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AccessConfigDbContext>();
+        Assert.Single(db.QuestionBankItems);
+        Assert.Single(db.AuditLogs);
+    }
+
+    [Fact]
+    public async Task List_omits_revision_history_but_detail_includes_it()
+    {
+        using var factory = new ApiTestFactory().AuthenticateAs(Ids.Lecturer, Roles.Lecturer);
+        await SeedAsync(factory);
+        using var client = factory.CreateClient();
+
+        using var createResponse = await client.PostAsJsonAsync(
+            $"/api/courses/{Ids.Course}/question-bank",
+            new { topic = "Databases", bloom = "Understand", content = "Explain a relational database." });
+        var created = await createResponse.Content.ReadFromJsonAsync<QuestionBankItemDto>();
+        Assert.NotNull(created);
+
+        using var listResponse = await client.GetAsync($"/api/courses/{Ids.Course}/question-bank");
+        Assert.Equal(HttpStatusCode.OK, listResponse.StatusCode);
+        using var listJson = await listResponse.Content.ReadFromJsonAsync<System.Text.Json.JsonDocument>();
+        Assert.NotNull(listJson);
+        var listItem = Assert.Single(listJson.RootElement.EnumerateArray()).Clone();
+        Assert.False(listItem.TryGetProperty("revisions", out _));
+
+        using var detailResponse = await client.GetAsync(
+            $"/api/courses/{Ids.Course}/question-bank/{created.Id}");
+        Assert.Equal(HttpStatusCode.OK, detailResponse.StatusCode);
+        var detail = await detailResponse.Content.ReadFromJsonAsync<QuestionBankItemDto>();
+        Assert.NotNull(detail);
+        Assert.Single(detail.Revisions);
+    }
+
+    [Fact]
     public async Task Lecturer_cannot_list_or_create_items_for_an_unassigned_course()
     {
         using var factory = new ApiTestFactory().AuthenticateAs(Ids.Lecturer, Roles.Lecturer);

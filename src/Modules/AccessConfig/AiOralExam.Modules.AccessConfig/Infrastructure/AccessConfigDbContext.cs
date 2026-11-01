@@ -120,11 +120,15 @@ public sealed class AccessConfigDbContext(DbContextOptions<AccessConfigDbContext
             e.Property(x => x.Topic).HasMaxLength(200).IsRequired();
             e.Property(x => x.Bloom).HasMaxLength(30).IsRequired();
             e.Property(x => x.Content).IsRequired();
+            e.Property(x => x.NormalizedContent).HasComputedColumnSql("lower(btrim(content))", stored: true);
             e.Property(x => x.Origin).HasMaxLength(20).IsRequired();
             e.Property(x => x.Status).HasMaxLength(20).IsRequired();
             e.HasOne(x => x.Course).WithMany().HasForeignKey(x => x.CourseId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(x => x.Revisions).WithOne(x => x.Item).HasForeignKey(x => x.QuestionBankItemId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(x => new { x.CourseId, x.Status });
+            e.HasIndex(x => new { x.CourseId, x.NormalizedContent })
+                .IsUnique()
+                .HasDatabaseName("ux_question_bank_course_normalized_content");
         });
 
         b.Entity<QuestionBankRevision>(e =>
