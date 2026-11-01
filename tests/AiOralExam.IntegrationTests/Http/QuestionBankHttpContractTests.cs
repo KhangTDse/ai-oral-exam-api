@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using AiOralExam.IntegrationTests.Infrastructure;
 using AiOralExam.Modules.AccessConfig.Application.QuestionBank;
+using AiOralExam.Modules.AccessConfig.Contracts;
 using AiOralExam.Modules.AccessConfig.Domain;
 using AiOralExam.Modules.AccessConfig.Infrastructure;
 using AiOralExam.SharedKernel.Errors;

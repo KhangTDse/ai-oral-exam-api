@@ -190,7 +190,7 @@ public sealed class AccessConfigDbContext(DbContextOptions<AccessConfigDbContext
                 .OnDelete(DeleteBehavior.NoAction);
             e.HasMany(x => x.Criteria).WithOne(x => x.RubricVersion).HasForeignKey(x => x.RubricVersionId)
                 .OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_rubric_criteria_version");
-            e.HasIndex(x => new { x.TemplateId, x.VersionNo }).IsUnique();
+            e.HasAlternateKey(x => new { x.TemplateId, x.VersionNo });
             e.HasIndex(x => new { x.TemplateId, x.VersionNo })
                 .HasDatabaseName("ix_rubric_versions_template");
             e.HasIndex(x => x.IsActive).IsUnique().HasFilter("is_active")

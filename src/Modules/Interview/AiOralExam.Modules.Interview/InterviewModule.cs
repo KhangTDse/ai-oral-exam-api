@@ -2,7 +2,7 @@ using AiOralExam.Modules.Interview.Application;
 using AiOralExam.Modules.Interview.Application.Ai;
 using AiOralExam.Modules.Interview.Application.Audio;
 using AiOralExam.Modules.Interview.Application.Ai.Mock;
-using AiOralExam.Modules.Interview.Application.Audio;
+using AiOralExam.Modules.Interview.Application.Events;
 using AiOralExam.Modules.Interview.Application.Features.ScoreReview;
 using AiOralExam.Modules.Interview.Contracts;
 using AiOralExam.Modules.Interview.Infrastructure;
@@ -47,6 +47,7 @@ public static class InterviewModule
         // ---- AI: mocks remain the safe default; real adapters are opt-in through AiProviders ----
         services.AddSingleton<MockAnswerAnalyzer>(sp =>
             new MockAnswerAnalyzer(sp.GetRequiredService<IOptions<InterviewOptions>>().Value.Mock.EnableFollowUps));
+        services.AddSingleton<IAnswerAnalyzer>(sp => sp.GetRequiredService<MockAnswerAnalyzer>());
         services.AddSingleton<IRubricScorer, MockRubricScorer>();
         services.AddSingleton<ISpeechToTextService, UnavailableSpeechToTextService>();
         services.AddSingleton<ITextToSpeechService, MockTextToSpeechService>();

@@ -88,7 +88,11 @@ public class InterviewAttemptTests
         var turn = response.AddTurn(TurnType.Main, "Question", DateTime.UtcNow);
         turn.AnswerTranscript = "saved transcript";
         turn.AnsweredAt = DateTime.UtcNow;
+        turn.ProcessingStatus = TurnProcessingStatus.Retry;
+        var attempt = new InterviewAttempt { Id = Guid.NewGuid(), Responses = [response] };
 
-        Assert.Same(turn, response.CurrentTurn);
+        Assert.Same(response, attempt.CurrentResponse);
+        Assert.Same(turn, Assert.Single(response.Turns));
+        Assert.Equal("saved transcript", turn.AnswerTranscript);
     }
 }

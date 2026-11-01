@@ -428,12 +428,10 @@ internal sealed class InterviewService(
         var dialogue = response.Turns.OrderBy(t => t.TurnNo)
             .Select(t => new DialogueTurn(t.QuestionText, t.AnswerTranscript, t.Type == TurnType.FollowUp))
             .ToList();
-        try
-        {
-            // 2) Analyze -> follow-up?
-            var analysis = await analyzer.AnalyzeAsync(new AnswerAnalysisRequest(
-                question.Content, question.Criteria, dialogue,
-                response.FollowUpCount, session.MaxFollowUps, _options.Language), ct);
+        // 2) Analyze -> follow-up?
+        var analysis = await analyzer.AnalyzeAsync(new AnswerAnalysisRequest(
+            question.Content, question.Criteria, dialogue,
+            response.FollowUpCount, session.MaxFollowUps, _options.Language), ct);
 
         var followUpOpenedAt = UtcNow;
         if (!timedOut && sessionOpen && session.IsOpenAt(followUpOpenedAt)
@@ -448,7 +446,7 @@ internal sealed class InterviewService(
         }
 
         var score = await scorer.ScoreAsync(new RubricScoringRequest(
-            question.Content, question.Criteria, dialogue, DefaultLanguage), ct);
+            question.Content, question.Criteria, dialogue, _options.Language), ct);
         var criterionScores = ValidateAiScore(score, question.Criteria)
             .Select((given, index) => new CriterionScore
             {

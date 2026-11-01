@@ -1,6 +1,7 @@
 using AiOralExam.Modules.AccessConfig.Application.QuestionBank;
 using AiOralExam.Modules.AccessConfig.Application.QuestionGeneration;
 using AiOralExam.Modules.AccessConfig.Application.AuditLogs;
+using AiOralExam.Modules.AccessConfig.Contracts;
 using AiOralExam.Modules.AccessConfig.Domain;
 using AiOralExam.Modules.AccessConfig.Infrastructure;
 using AiOralExam.SharedKernel.Errors;

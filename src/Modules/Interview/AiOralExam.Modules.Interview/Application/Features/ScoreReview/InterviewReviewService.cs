@@ -201,7 +201,7 @@ internal sealed class InterviewReviewService(
         var attempt = await db.InterviewAttempts
                           .Include(a => a.Participant).ThenInclude(p => p.Attempts)
                           .Include(a => a.Review)
-                          .Include(a => a.Responses)
+                          .Include(a => a.Responses).ThenInclude(response => response.Turns)
                           .FirstOrDefaultAsync(a => a.Id == attemptId, ct)
                       ?? throw new NotFoundException("attempt_not_found", "Attempt not found.");
 

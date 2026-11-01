@@ -5,6 +5,8 @@ public sealed class InterviewOptions
 {
     public const string SectionName = "Interview";
 
+    public string Language { get; set; } = "Vietnamese";
+
     /// <summary>Extra seconds after the time limit (network delay) before an answer counts as timed out.</summary>
     public int TimeLimitGraceSeconds { get; set; } = 15;
 
